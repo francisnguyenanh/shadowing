@@ -4,13 +4,26 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ video.title or video.video_id }} — Shadowing</title>
+  <!-- Google Fonts: Inter + Noto Sans Vietnamese -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <script>
-    tailwind.config = { darkMode: 'class', theme: { extend: {} } }
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            'sans': ['Inter', 'Noto Sans', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+          }
+        }
+      }
+    }
   </script>
 </head>
-<body class="bg-gray-950 text-gray-100 h-full overflow-hidden">
+<body class="bg-gray-950 text-gray-100 h-full overflow-hidden" style="font-family: Inter, 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
 
 <!-- Pass data to JS via script tag -->
 <script id="app-data" type="application/json">
@@ -28,6 +41,9 @@
     <a href="{{ url_for('index') }}" class="text-gray-400 hover:text-gray-200 transition text-sm">← Quay lại</a>
     <span class="text-gray-700">|</span>
     <h1 class="text-sm font-semibold text-gray-200 truncate flex-1">{{ video.title or video.youtube_url }}</h1>
+    <a href="{{ url_for('cycle_dashboard', video_db_id=video.id) }}"
+       class="text-purple-400 hover:text-purple-300 text-xs px-2 py-1 rounded transition border border-transparent hover:border-purple-700 flex-shrink-0"
+       title="Chu kỳ 3 ngày">🔄 Chu kỳ</a>
     <a href="{{ url_for('bookmarks_video', video_db_id=video.id) }}"
        class="text-yellow-400 hover:text-yellow-300 text-xs px-2 py-1 rounded transition border border-transparent hover:border-yellow-700 flex-shrink-0"
        title="Xem bookmarks video này">★ Bookmarks</a>
@@ -157,6 +173,34 @@
             Clear
           </button>
         </div>
+
+        {% if chunks %}
+        <!-- Chunk loop panel -->
+        <div class="border-t border-gray-800 pt-2">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-xs text-gray-400 font-medium">🔁 Loop chunk:</span>
+            <button onclick="stopChunkLoop()"
+                    id="chunk-loop-stop-btn"
+                    class="hidden text-xs bg-red-900 hover:bg-red-800 border border-red-700 text-red-300 px-2 py-1 rounded-lg transition">
+              ⏹ Dừng loop
+            </button>
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            {% for chunk in chunks %}
+            <button id="chunk-loop-btn-{{ chunk.id }}"
+                    onclick="toggleChunkLoop({{ chunk.id }}, {{ chunk.start_time }}, {{ chunk.end_time }}, this)"
+                    class="chunk-loop-btn text-xs bg-gray-800 hover:bg-indigo-800 border border-gray-700 text-gray-300 px-2.5 py-1.5 rounded-lg transition"
+                    title="{{ '%02d:%02d' | format((chunk.start_time // 60)|int, (chunk.start_time % 60)|int) }} – {{ '%02d:%02d' | format((chunk.end_time // 60)|int, (chunk.end_time % 60)|int) }}">
+              {{ chunk.label }}
+              <span class="text-gray-500 ml-1 font-mono text-[10px]">
+                {{ '%d:%02d' | format((chunk.start_time // 60)|int, (chunk.start_time % 60)|int) }}
+              </span>
+            </button>
+            {% endfor %}
+          </div>
+          <div id="chunk-loop-status" class="hidden mt-1 text-xs text-indigo-400 animate-pulse"></div>
+        </div>
+        {% endif %}
 
         <!-- Shadowing mode -->
         <div class="flex items-center gap-2 flex-wrap">

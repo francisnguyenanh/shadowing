@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+{% block title %}Weekly Review — Tomo Shadow{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-xl font-bold text-gray-100">📈 Weekly Review</h1>
+  <p class="text-sm text-gray-400 mt-1">Tổng kết tuần luyện tập</p>
+</div>
+
+<!-- Stats row -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+  <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
+    <div class="text-2xl font-bold text-indigo-400">{{ (total_week_seconds // 3600) }}h {{ ((total_week_seconds % 3600) // 60) }}m</div>
+    <div class="text-xs text-gray-400 mt-1">Luyện tuần này</div>
+  </div>
+  <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
+    <div class="text-2xl font-bold text-emerald-400">{{ completed_cycles | length }}</div>
+    <div class="text-xs text-gray-400 mt-1">Video hoàn thành (30 ngày)</div>
+  </div>
+  <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
+    <div class="text-2xl font-bold text-yellow-400">{{ active_cycles | length }}</div>
+    <div class="text-xs text-gray-400 mt-1">Video đang học</div>
+  </div>
+  <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
+    <div class="text-2xl font-bold text-rose-400">{{ recordings | length }}</div>
+    <div class="text-xs text-gray-400 mt-1">Bản ghi âm</div>
+  </div>
+</div>
+
+<!-- Daily practice chart (last 7 days) -->
+<div class="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
+  <h2 class="text-sm font-semibold text-gray-200 mb-4">📅 Luyện tập 7 ngày qua</h2>
+  <div class="flex items-end gap-2 h-32">
+    {% set max_sec = days_data | map(attribute='seconds') | max %}
+    {% for day in days_data %}
+    {% set pct = ((day.seconds / max_sec * 100) | int) if max_sec > 0 else 0 %}
+    <div class="flex-1 flex flex-col items-center gap-1">
+      <span class="text-xs text-gray-500">{{ (day.seconds // 60) }}m</span>
+      <div class="w-full bg-gray-800 rounded-t flex-none" style="height: 80px;">
+        <div class="w-full rounded-t transition-all"
+             style="height: {{ pct }}%; background: {% if pct >= 80 %}#10b981{% elif pct >= 40 %}#6366f1{% else %}#374151{% endif %}; margin-top: {{ 100 - pct }}%"></div>
+      </div>
+      <span class="text-xs text-gray-500">{{ day.date[5:] }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Active cycles -->
+{% if active_cycles %}
+<div class="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
+  <h2 class="text-sm font-semibold text-gray-200 mb-4">🔄 Đang học</h2>
+  <div class="space-y-3">
+    {% for cycle in active_cycles %}
+    <div class="flex items-center gap-3 py-2">
+      <span class="text-sm flex-none">
+        {{ '📘' if cycle.status == 'day1' else ('📗' if cycle.status == 'day2' else '📕') }}
+      </span>
+      <div class="flex-1 min-w-0">
+        <a href="{{ url_for('cycle_dashboard', video_db_id=cycle.video_id) }}"
+           class="text-sm text-gray-200 hover:text-indigo-300 transition truncate block">
+          {{ cycle.title or cycle.yt_id }}
+        </a>
+        <p class="text-xs text-gray-500">
+          Ngày {{ '1' if cycle.status == 'day1' else ('2' if cycle.status == 'day2' else '3') }}/3
+          · {{ cycle.done_acts or 0 }}/{{ cycle.total_acts or 0 }} hoạt động
+        </p>
+      </div>
+      {% if cycle.total_acts %}
+      <div class="w-24 h-1.5 bg-gray-800 rounded-full overflow-hidden flex-none">
+        <div class="h-full bg-indigo-500 rounded-full"
+             style="width: {{ (((cycle.done_acts or 0) / cycle.total_acts) * 100)|round }}%"></div>
+      </div>
+      {% endif %}
+      <a href="{{ url_for('cycle_dashboard', video_db_id=cycle.video_id) }}"
+         class="text-xs bg-indigo-700 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-lg transition flex-none">
+        Tiếp tục →
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Completed cycles this month -->
+{% if completed_cycles %}
+<div class="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
+  <h2 class="text-sm font-semibold text-gray-200 mb-4">✅ Hoàn thành gần đây</h2>
+  <div class="space-y-3">
+    {% for cycle in completed_cycles %}
+    <div class="flex items-center gap-3 py-2 border-b border-gray-800 last:border-0">
+      <span class="text-base flex-none">✅</span>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm text-gray-200 truncate">{{ cycle.title or cycle.yt_id }}</p>
+        <p class="text-xs text-gray-500">
+          Hoàn thành: {{ cycle.completed_at[:10] if cycle.completed_at else '—' }}
+          {% if cycle.comprehension_day3 %} · Hiểu: <span class="text-emerald-400 font-medium">{{ cycle.comprehension_day3 }}%</span>{% endif %}
+        </p>
+      </div>
+      <a href="{{ url_for('cycle_dashboard', video_db_id=cycle.video_id) }}"
+         class="text-xs text-gray-400 hover:text-gray-200 transition">Xem →</a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Recent recordings -->
+{% if recordings %}
+<div class="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
+  <h2 class="text-sm font-semibold text-gray-200 mb-4">🎙 Bản ghi âm gần đây</h2>
+  <div class="space-y-3">
+    {% for rec in recordings[:10] %}
+    <div class="flex items-center gap-3 py-2 border-b border-gray-800 last:border-0">
+      <span class="text-base flex-none">🎙</span>
+      <div class="flex-1 min-w-0">
+        <p class="text-xs text-gray-300">
+          <span class="text-gray-200 font-medium">{{ rec.video_title or rec.yt_id }}</span>
+          <span class="text-gray-500 mx-1">·</span>
+          {{ rec.activity_type.replace('_', ' ').title() }}
+        </p>
+        <p class="text-xs text-gray-500">{{ rec.recorded_at[:16] if rec.recorded_at else '' }}</p>
+        {% if rec.self_notes %}
+        <p class="text-xs text-yellow-400/80">📝 {{ rec.self_notes }}</p>
+        {% endif %}
+      </div>
+      <audio controls src="{{ url_for('static', filename='recordings/' + rec.filename) }}"
+             class="h-8 flex-none max-w-[160px]"></audio>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- 5 Golden Rules reminder -->
+<div class="bg-gray-900 border border-indigo-900 rounded-xl p-5">
+  <h2 class="text-sm font-semibold text-indigo-300 mb-4">⭐ 5 Nguyên tắc vàng – Nhớ mỗi ngày</h2>
+  <ol class="space-y-2">
+    <li class="flex items-start gap-3 text-sm text-gray-300">
+      <span class="text-indigo-400 font-bold flex-none">1.</span>
+      Input phải hiểu được <strong>60-70%</strong> KHÔNG nhìn script – nếu ít hơn, chọn video khác.
+    </li>
+    <li class="flex items-start gap-3 text-sm text-gray-300">
+      <span class="text-indigo-400 font-bold flex-none">2.</span>
+      Shadowing hiệu quả = hiểu nghĩa từng câu <strong>ĐANG NÓI THEO</strong>, không bắt chước âm thanh.
+    </li>
+    <li class="flex items-start gap-3 text-sm text-gray-300">
+      <span class="text-indigo-400 font-bold flex-none">3.</span>
+      <strong>Free recall</strong> sau mỗi session = bắt buộc. Không có bước này = shadow "karaoke".
+    </li>
+    <li class="flex items-start gap-3 text-sm text-gray-300">
+      <span class="text-indigo-400 font-bold flex-none">4.</span>
+      Tốc độ tăng DẦN: <strong>1.0× → 1.25×</strong> → chỉ lên 1.5× khi đã thuộc lòng đoạn đó.
+    </li>
+    <li class="flex items-start gap-3 text-sm text-gray-300">
+      <span class="text-indigo-400 font-bold flex-none">5.</span>
+      Ghi âm bản thân <strong>1 lần/tuần</strong>, nghe lại – đây là feedback trung thực nhất bạn có thể có.
+    </li>
+  </ol>
+</div>
+{% endblock %}

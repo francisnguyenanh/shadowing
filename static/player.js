@@ -28,6 +28,11 @@ let autoPauseEnabled = false;
 let showBookmarkedOnly = false;
 let _lastAutoPausedIndex = -1;
 
+// ── Chunk loop state ──────────────────────────────────────────────────────────
+let _chunkLoopId    = null;   // chunk id currently looping (null = off)
+let _chunkLoopStart = null;   // seconds
+let _chunkLoopEnd   = null;   // seconds
+
 // ── Practice count & daily goal ───────────────────────────────────────────────
 let _loopPlayCount = {};       // {segDbId: number of loop completions this session}
 let _lastLoopedSegId = null;   // track when we reset to avoid double-count
@@ -66,6 +71,19 @@ function onPlayerReady(event) {
   // Restore playback speed from localStorage
   const savedSpeed = parseFloat(localStorage.getItem('shadowing_speed') || '1');
   if ([0.5, 0.75, 1, 1.25, 1.5].includes(savedSpeed)) setSpeed(savedSpeed);
+  // Seek to #t=<seconds> if present in URL hash
+  const hashMatch = window.location.hash.match(/[#&]t=(\d+)/);
+  if (hashMatch) {
+    const seekTo = parseInt(hashMatch[1], 10);
+    player.seekTo(seekTo, true);
+    player.playVideo();
+    // Scroll transcript to that position
+    const seg = SEGMENTS.find(s => s.start_time >= seekTo - 2);
+    if (seg) {
+      const el = document.getElementById(`seg-${seg.id}`);
+      if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }
 }
 
 function onPlayerStateChange(event) {
@@ -111,6 +129,15 @@ function onPoll() {
   if (loopEnabled && loopStart !== null && loopEnd !== null) {
     if (currentTime >= loopEnd) {
       player.seekTo(loopStart, true);
+      return;
+    }
+  }
+
+  // Chunk loop check
+  if (_chunkLoopId !== null && _chunkLoopStart !== null && _chunkLoopEnd !== null) {
+    if (currentTime >= _chunkLoopEnd) {
+      player.seekTo(_chunkLoopStart, true);
+      player.playVideo();
       return;
     }
   }
@@ -479,6 +506,59 @@ function formatTime(seconds) {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+// ── Chunk loop ─────────────────────────────────────────────────────────────────
+
+function toggleChunkLoop(chunkId, start, end, btn) {
+  if (_chunkLoopId === chunkId) {
+    // Already looping this chunk → stop
+    stopChunkLoop();
+    return;
+  }
+  // Stop any existing chunk loop first
+  _clearChunkLoopUI();
+
+  _chunkLoopId    = chunkId;
+  _chunkLoopStart = start;
+  _chunkLoopEnd   = end;
+
+  // Start playing from chunk start
+  if (player) {
+    try { player.seekTo(start, true); player.playVideo(); } catch(e) {}
+  }
+
+  // Update button UI
+  btn.classList.add('bg-indigo-700', 'border-indigo-500', 'text-white');
+  btn.classList.remove('bg-gray-800', 'border-gray-700', 'text-gray-300');
+
+  // Show stop button & status
+  const stopBtn = document.getElementById('chunk-loop-stop-btn');
+  if (stopBtn) stopBtn.classList.remove('hidden');
+  const status = document.getElementById('chunk-loop-status');
+  if (status) {
+    status.textContent = `🔁 Đang loop ${btn.textContent.trim().split('\n')[0].trim()} · ${formatTime(start)} – ${formatTime(end)}`;
+    status.classList.remove('hidden');
+  }
+}
+
+function stopChunkLoop() {
+  _clearChunkLoopUI();
+  _chunkLoopId    = null;
+  _chunkLoopStart = null;
+  _chunkLoopEnd   = null;
+}
+
+function _clearChunkLoopUI() {
+  // Reset all chunk loop buttons
+  document.querySelectorAll('.chunk-loop-btn').forEach(b => {
+    b.classList.remove('bg-indigo-700', 'border-indigo-500', 'text-white');
+    b.classList.add('bg-gray-800', 'border-gray-700', 'text-gray-300');
+  });
+  const stopBtn = document.getElementById('chunk-loop-stop-btn');
+  if (stopBtn) stopBtn.classList.add('hidden');
+  const status = document.getElementById('chunk-loop-status');
+  if (status) status.classList.add('hidden');
 }
 
 // ── Text / Translation / Furigana toggles ─────────────────────────────────────

@@ -1,0 +1,317 @@
+{% extends 'base.html' %}
+{% block title %}Chu kỳ học — {{ video.title or video.video_id }}{% endblock %}
+
+{% block content %}
+<script id="cycle-data" type="application/json">
+{
+  "videoDbId": {{ video.id }},
+  "videoTitle": {{ (video.title or video.youtube_url) | tojson }}
+}
+</script>
+
+<!-- Header -->
+<div class="mb-6 flex items-start gap-4 flex-wrap">
+  <div class="flex-1 min-w-0">
+    <div class="flex items-center gap-2 mb-1">
+      <a href="{{ url_for('index') }}" class="text-gray-500 hover:text-gray-300 text-sm transition">← Danh sách</a>
+      <span class="text-gray-700">/</span>
+      <span class="text-xs text-indigo-400 font-semibold uppercase tracking-wider">Chu kỳ 3 ngày</span>
+    </div>
+    <h1 class="text-lg font-bold text-gray-100 line-clamp-2">{{ video.title or video.youtube_url }}</h1>
+    <div class="flex items-center gap-3 mt-1 flex-wrap">
+      {% if video.language == 'ja' %}
+        <span class="text-xs bg-red-900 text-red-300 border border-red-700 px-2 py-0.5 rounded-full">🇯🇵 日本語</span>
+      {% else %}
+        <span class="text-xs bg-blue-900 text-blue-300 border border-blue-700 px-2 py-0.5 rounded-full">🇬🇧 English</span>
+      {% endif %}
+      {% if video.duration %}
+        <span class="text-xs text-gray-400">{{ (video.duration // 60)|int }}:{{ '%02d' % (video.duration % 60)|int }} phút</span>
+      {% endif %}
+      {% if total_chunks > 0 %}
+        <span class="text-xs text-gray-400">{{ total_chunks }} chunk{% if total_chunks > 1 %}s{% endif %}</span>
+        {% if completed_chunks > 0 %}
+          <span class="text-xs bg-green-900 text-green-300 border border-green-700 px-2 py-0.5 rounded-full">✅ {{ completed_chunks }}/{{ total_chunks }} hoàn thành</span>
+        {% endif %}
+        {% if active_chunks > 0 %}
+          <span class="text-xs bg-indigo-900 text-indigo-300 border border-indigo-700 px-2 py-0.5 rounded-full animate-pulse">● {{ active_chunks }} đang học</span>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+  <div class="flex gap-2 flex-wrap flex-none">
+    <a href="{{ url_for('player', video_db_id=video.id) }}"
+       class="bg-indigo-700 hover:bg-indigo-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">
+       ▶ Luyện tập
+    </a>
+    {% if total_chunks == 0 %}
+    <button onclick="splitChunks()"
+            class="bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">
+      ✂️ Chia chunks & tạo chu kỳ
+    </button>
+    {% else %}
+    <button onclick="resplitChunks()"
+            class="bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-semibold px-4 py-2 rounded-lg transition"
+            title="Xóa tất cả chunks + cycles và chia lại">
+      ↺ Chia lại
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+{% if total_chunks == 0 %}
+<!-- ── No chunks yet – onboarding ── -->
+<div class="bg-gray-900 border border-gray-800 rounded-2xl p-8 text-center max-w-2xl mx-auto">
+  <h2 class="text-xl font-bold text-gray-100 mb-3">🎬 Tự động chia video thành chunks</h2>
+  <p class="text-gray-400 text-sm mb-6 leading-relaxed">
+    App sẽ chia video thành các đoạn ~4 phút dựa trên transcript.<br>
+    Mỗi chunk sẽ có <strong class="text-indigo-300">1 chu kỳ 3 ngày riêng</strong> với 14 hoạt động luyện shadow.
+  </p>
+  <div class="grid grid-cols-3 gap-4 mb-6 text-left">
+    <div class="bg-blue-950 border border-blue-800 rounded-xl p-4">
+      <div class="text-2xl mb-2">📘</div>
+      <div class="text-sm font-semibold text-blue-300 mb-1">Ngày 1 – Nạp & Hiểu</div>
+      <p class="text-xs text-gray-400">Nghe chunk, đọc transcript, gạch 10 expressions, nói lại ý chính 60"</p>
+    </div>
+    <div class="bg-green-950 border border-green-800 rounded-xl p-4">
+      <div class="text-2xl mb-2">📗</div>
+      <div class="text-sm font-semibold text-green-300 mb-1">Ngày 2 – Luyện Âm</div>
+      <p class="text-xs text-gray-400">Shadow 1.0× → 1.25×, Free Recall, nói tự do 5 phút</p>
+    </div>
+    <div class="bg-orange-950 border border-orange-800 rounded-xl p-4">
+      <div class="text-2xl mb-2">📕</div>
+      <div class="text-sm font-semibold text-orange-300 mb-1">Ngày 3 – Tích Hợp</div>
+      <p class="text-xs text-gray-400">Shadow 1.25×, Free Recall cuối, ghi âm tự đánh giá</p>
+    </div>
+  </div>
+  {% if not video.duration %}
+  <div class="bg-yellow-950 border border-yellow-800 rounded-xl p-3 mb-4 text-xs text-yellow-300 text-left">
+    ⚠️ Video này chưa có transcript. App sẽ chia đều theo thời lượng video.
+    <a href="{{ url_for('show_prompt', video_db_id=video.id) }}" class="underline ml-1">Thêm transcript →</a>
+  </div>
+  {% endif %}
+  <button onclick="splitChunks()"
+          class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base px-8 py-3 rounded-xl transition">
+    ✂️ Chia chunks & tạo chu kỳ
+  </button>
+</div>
+
+{% else %}
+<!-- ── Chunks grid ── -->
+<div class="mb-4">
+  <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">📚 Danh sách chunks – Mỗi chunk = 1 chu kỳ 3 ngày</h2>
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for chunk in chunks %}
+    {% set cyc = chunk.cycle %}
+    {% set status = cyc.status if cyc else 'not_started' %}
+    {% set pct = cyc.pct if cyc else 0 %}
+    {% set status_colors = {
+        'not_started': 'border-gray-700',
+        'day1': 'border-blue-600 ring-1 ring-blue-600',
+        'day2': 'border-green-600 ring-1 ring-green-600',
+        'day3': 'border-orange-500 ring-1 ring-orange-500',
+        'completed': 'border-emerald-600',
+    } %}
+    <div class="bg-gray-900 border {{ status_colors.get(status, 'border-gray-700') }} rounded-xl p-4 flex flex-col gap-3">
+      <!-- Chunk header -->
+      <div class="flex items-center justify-between">
+        <span class="text-base font-bold text-indigo-300">{{ chunk.label }}</span>
+        <span class="text-xs font-mono text-gray-400">
+          {{ '%02d:%02d' | format((chunk.start_time // 60)|int, (chunk.start_time % 60)|int) }}
+          –
+          {{ '%02d:%02d' | format((chunk.end_time // 60)|int, (chunk.end_time % 60)|int) }}
+        </span>
+      </div>
+      <div class="text-xs text-gray-500">
+        ⏱ {{ ((chunk.end_time - chunk.start_time) / 60) | round(1) }} phút
+      </div>
+
+      <!-- Status badge -->
+      {% if status == 'not_started' %}
+        <span class="text-xs text-gray-500 self-start">⬜ Chưa bắt đầu</span>
+      {% elif status == 'day1' %}
+        <span class="text-xs bg-blue-900 text-blue-300 border border-blue-700 px-2 py-0.5 rounded-full self-start animate-pulse">📘 Đang học – Ngày 1</span>
+      {% elif status == 'day2' %}
+        <span class="text-xs bg-green-900 text-green-300 border border-green-700 px-2 py-0.5 rounded-full self-start animate-pulse">📗 Đang học – Ngày 2</span>
+      {% elif status == 'day3' %}
+        <span class="text-xs bg-orange-900 text-orange-300 border border-orange-700 px-2 py-0.5 rounded-full self-start animate-pulse">📕 Đang học – Ngày 3</span>
+      {% elif status == 'completed' %}
+        <span class="text-xs bg-emerald-900 text-emerald-300 border border-emerald-700 px-2 py-0.5 rounded-full self-start">✅ Hoàn thành</span>
+      {% endif %}
+
+      <!-- Progress bar -->
+      {% if cyc and cyc.total_acts %}
+      <div>
+        <div class="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+          <div class="h-full rounded-full transition-all duration-500
+                      {% if status == 'day1' %}bg-blue-500
+                      {% elif status == 'day2' %}bg-green-500
+                      {% elif status == 'day3' %}bg-orange-500
+                      {% elif status == 'completed' %}bg-emerald-500
+                      {% else %}bg-gray-600{% endif %}"
+               style="width: {{ pct }}%"></div>
+        </div>
+        <div class="flex justify-between text-xs text-gray-500 mt-1">
+          <span>{{ cyc.done_acts or 0 }}/{{ cyc.total_acts }} hoạt động</span>
+          <span class="font-bold">{{ pct }}%</span>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Focus expressions preview -->
+      {% if chunk.focus_expressions %}
+      <div class="flex flex-wrap gap-1">
+        {% for expr in chunk.focus_expressions[:3] %}
+        <span class="bg-yellow-900 text-yellow-300 border border-yellow-700 text-xs px-2 py-0.5 rounded-full">{{ expr }}</span>
+        {% endfor %}
+        {% if chunk.focus_expressions | length > 3 %}
+        <span class="text-xs text-gray-500">+{{ (chunk.focus_expressions | length) - 3 }} nữa</span>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <!-- Action buttons -->
+      <div class="flex gap-2 mt-auto">
+        {% if status == 'not_started' %}
+        <button onclick="startChunkCycle({{ chunk.id }})"
+                class="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold py-2 rounded-lg transition">
+          🚀 Bắt đầu
+        </button>
+        {% elif status == 'completed' %}
+        <a href="{{ url_for('chunk_cycle_detail', video_db_id=video.id, chunk_id=chunk.id) }}"
+           class="flex-1 text-center bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-semibold py-2 rounded-lg transition">
+          👁 Xem lại
+        </a>
+        <button onclick="restartChunkCycle({{ chunk.id }})"
+                class="text-xs text-gray-500 hover:text-gray-300 px-2 py-2 rounded-lg transition"
+                title="Làm lại chu kỳ">↺</button>
+        {% else %}
+        <a href="{{ url_for('chunk_cycle_detail', video_db_id=video.id, chunk_id=chunk.id) }}"
+           class="flex-1 text-center bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-semibold py-2 rounded-lg transition">
+          📋 Xem chu kỳ
+        </a>
+        {% endif %}
+        <a href="{{ url_for('player', video_db_id=video.id) }}#t={{ chunk.start_time | int }}"
+           class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-3 py-2 rounded-lg transition"
+           title="Mở full player">⊞</a>
+        <button onclick="openChunkModal('{{ video.video_id }}', {{ chunk.start_time | int }}, {{ chunk.end_time | int }}, '{{ chunk.label | e }}')"
+                class="text-xs bg-indigo-800 hover:bg-indigo-700 text-indigo-300 px-3 py-2 rounded-lg transition"
+                title="Nghe chunk này">▶</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Overall stats -->
+<div class="grid grid-cols-3 gap-4 mt-6">
+  <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
+    <div class="text-2xl font-bold text-gray-100">{{ total_chunks }}</div>
+    <div class="text-xs text-gray-500 mt-1">Tổng chunks</div>
+  </div>
+  <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
+    <div class="text-2xl font-bold text-indigo-300">{{ active_chunks }}</div>
+    <div class="text-xs text-gray-500 mt-1">Đang học</div>
+  </div>
+  <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
+    <div class="text-2xl font-bold text-emerald-400">{{ completed_chunks }}</div>
+    <div class="text-xs text-gray-500 mt-1">Hoàn thành</div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const _cd = JSON.parse(document.getElementById('cycle-data').textContent);
+const VIDEO_DB_ID = _cd.videoDbId;
+
+async function splitChunks() {
+  const btn = event?.target;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Đang xử lý…'; }
+  try {
+    const res = await fetch(`/api/video/${VIDEO_DB_ID}/split-chunks`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      window.location.reload();
+    } else {
+      alert('Lỗi: ' + (data.error || 'Không xác định'));
+      if (btn) { btn.disabled = false; btn.textContent = '✂️ Chia chunks & tạo chu kỳ'; }
+    }
+  } catch (e) {
+    alert('Lỗi kết nối: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '✂️ Chia chunks & tạo chu kỳ'; }
+  }
+}
+
+async function resplitChunks() {
+  if (!confirm('Xóa tất cả chu kỳ và chia lại từ đầu?\n⚠️ Toàn bộ tiến trình sẽ bị xóa.')) return;
+  await splitChunks();
+}
+
+async function startChunkCycle(chunkId) {
+  const btn = event?.target;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳…'; }
+  try {
+    const res = await fetch(`/api/chunk/${chunkId}/cycle/start`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      window.location.href = `/cycle/${VIDEO_DB_ID}/chunk/${chunkId}`;
+    } else {
+      alert('Lỗi: ' + (data.error || 'Không xác định'));
+      if (btn) { btn.disabled = false; btn.textContent = '🚀 Bắt đầu'; }
+    }
+  } catch (e) {
+    alert('Lỗi kết nối: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '🚀 Bắt đầu'; }
+  }
+}
+
+async function restartChunkCycle(chunkId) {
+  if (!confirm('Xóa tiến trình chu kỳ này và bắt đầu lại?')) return;
+  await startChunkCycle(chunkId);
+}
+
+// ── Chunk mini-player modal ───────────────────────────────────────────────────
+let _modalYtId = null, _modalStart = 0, _modalEnd = 0;
+
+function openChunkModal(ytId, start, end, label) {
+  _modalYtId = ytId; _modalStart = start; _modalEnd = end;
+  document.getElementById('chunk-modal-title').textContent = '▶ ' + label +
+    '  (' + _fmt(start) + ' – ' + _fmt(end) + ')';
+  const src = `https://www.youtube.com/embed/${ytId}?start=${start}&end=${end}&autoplay=1&rel=0&modestbranding=1`;
+  document.getElementById('chunk-modal-frame').src = src;
+  document.getElementById('chunk-modal').classList.remove('hidden');
+}
+
+function closeChunkModal() {
+  document.getElementById('chunk-modal-frame').src = '';
+  document.getElementById('chunk-modal').classList.add('hidden');
+}
+
+function _fmt(s) {
+  const m = Math.floor(s / 60), ss = Math.floor(s % 60);
+  return m + ':' + String(ss).padStart(2, '0');
+}
+</script>
+
+<!-- ── Chunk mini-player modal ─────────────────────────────────────────────── -->
+<div id="chunk-modal" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+     onclick="if(event.target===this)closeChunkModal()">
+  <div class="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-2xl" onclick="event.stopPropagation()">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+      <span id="chunk-modal-title" class="text-sm font-semibold text-gray-200"></span>
+      <button onclick="closeChunkModal()" class="text-gray-400 hover:text-gray-200 text-xl px-2">✕</button>
+    </div>
+    <div class="p-3">
+      <iframe id="chunk-modal-frame" src="" allowfullscreen
+              class="w-full aspect-video rounded-lg bg-black"
+              allow="autoplay; encrypted-media"></iframe>
+    </div>
+    <div class="px-4 pb-3 text-xs text-gray-500 text-center">
+      Video sẽ dừng tự động khi hết chunk · <button onclick="closeChunkModal()" class="text-indigo-400 hover:underline">Đóng</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

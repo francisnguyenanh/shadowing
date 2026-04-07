@@ -1,11 +1,19 @@
 # -*- coding: utf-8 -*-
 import re
 import json
+import os
+import datetime
+import unicodedata
 from flask import Flask, render_template, request, redirect, url_for, flash, g, jsonify
+from werkzeug.utils import secure_filename
 import config
 from database import get_db, init_db, close_db
 from prompt_builder import build_prompt, build_continuation_prompt, build_chunked_prompts, build_chunk_prompt_with_transcript, build_srt_translation_prompt
 from transcript_parser import parse_transcript, parse_and_merge_transcripts, save_transcript, apply_timeline_offset, parse_srt
+from services.learning_cycle_service import (
+    generate_schedule, generate_per_chunk_schedule, auto_split_chunks,
+    get_cycle_summary, get_activity_label, get_time_label, ACTIVITY_LABELS, TIME_OF_DAY_LABELS
+)
 
 app = Flask(__name__)
 app.config.from_object(config)
@@ -365,8 +373,13 @@ def player(video_db_id):
             (video_db_id,)
         ).fetchall()
         segments_list = [dict(s) for s in segments]
+        chunks = [dict(c) for c in db.execute(
+            'SELECT id, label, start_time, end_time, chunk_order FROM chunks WHERE video_id = ? ORDER BY chunk_order',
+            (video_db_id,)
+        ).fetchall()]
         return render_template('player.html', video=video, segments=segments_list,
-                               segments_json=json.dumps(segments_list))
+                               segments_json=json.dumps(segments_list),
+                               chunks=chunks)
     except Exception as e:
         flash(f'Lỗi khi tải player: {str(e)}', 'error')
         return redirect(url_for('index'))
@@ -854,7 +867,818 @@ def api_log_practice_session():
         return jsonify({'error': str(e)}), 500
 
 
+# ── 3-Day Learning Cycle ──────────────────────────────────────────────────────
+
+@app.route('/cycle/<int:video_db_id>')
+def cycle_dashboard(video_db_id):
+    """Show video-level overview: all chunks with their individual cycle status."""
+    try:
+        db = get_db()
+        video = db.execute('SELECT * FROM videos WHERE id = ?', (video_db_id,)).fetchone()
+        if video is None:
+            flash('Không tìm thấy video.', 'error')
+            return redirect(url_for('index'))
+
+        # Load chunks for this video
+        chunks_rows = db.execute(
+            'SELECT * FROM chunks WHERE video_id = ? ORDER BY chunk_order', (video_db_id,)
+        ).fetchall()
+        chunks = [dict(c) for c in chunks_rows]
+        for c in chunks:
+            try:
+                c['focus_expressions'] = json.loads(c['focus_expressions'] or '[]')
+            except Exception:
+                c['focus_expressions'] = []
+
+        # Load all cycles belonging to this video (one per chunk)
+        cycles_rows = db.execute(
+            '''SELECT lc.*,
+                      COUNT(sa.id) as total_acts,
+                      SUM(sa.completed) as done_acts
+               FROM learning_cycles lc
+               LEFT JOIN session_activities sa ON sa.learning_cycle_id = lc.id
+               WHERE lc.video_id = ?
+               GROUP BY lc.id
+               ORDER BY lc.chunk_id ASC''',
+            (video_db_id,)
+        ).fetchall()
+        cycles_by_chunk = {r['chunk_id']: dict(r) for r in cycles_rows}
+
+        # Attach cycle info to each chunk
+        for c in chunks:
+            cyc = cycles_by_chunk.get(c['id'])
+            if cyc:
+                total = cyc['total_acts'] or 0
+                done = cyc['done_acts'] or 0
+                cyc['pct'] = round(done / total * 100) if total else 0
+                c['cycle'] = cyc
+            else:
+                c['cycle'] = None
+
+        total_chunks = len(chunks)
+        completed_chunks = sum(1 for c in chunks if c['cycle'] and c['cycle']['status'] == 'completed')
+        active_chunks = sum(1 for c in chunks if c['cycle'] and c['cycle']['status'] in ('day1', 'day2', 'day3'))
+
+        return render_template(
+            'cycle_dashboard.html',
+            video=video, chunks=chunks,
+            total_chunks=total_chunks,
+            completed_chunks=completed_chunks,
+            active_chunks=active_chunks,
+        )
+    except Exception as e:
+        flash(f'Lỗi: {str(e)}', 'error')
+        return redirect(url_for('index'))
+
+
+@app.route('/cycle/<int:video_db_id>/chunk/<int:chunk_id>')
+def chunk_cycle_detail(video_db_id, chunk_id):
+    """Show the 3-day cycle detail for one specific chunk."""
+    try:
+        db = get_db()
+        video = db.execute('SELECT * FROM videos WHERE id = ?', (video_db_id,)).fetchone()
+        if video is None:
+            flash('Không tìm thấy video.', 'error')
+            return redirect(url_for('index'))
+
+        chunk = db.execute('SELECT * FROM chunks WHERE id = ? AND video_id = ?',
+                           (chunk_id, video_db_id)).fetchone()
+        if chunk is None:
+            flash('Không tìm thấy chunk.', 'error')
+            return redirect(url_for('cycle_dashboard', video_db_id=video_db_id))
+        chunk = dict(chunk)
+        try:
+            chunk['focus_expressions'] = json.loads(chunk['focus_expressions'] or '[]')
+        except Exception:
+            chunk['focus_expressions'] = []
+
+        cycle = db.execute(
+            'SELECT * FROM learning_cycles WHERE video_id = ? AND chunk_id = ?',
+            (video_db_id, chunk_id)
+        ).fetchone()
+
+        activities = []
+        day_progress = {1: {'total': 0, 'done': 0, 'pct': 0, 'activities': []},
+                        2: {'total': 0, 'done': 0, 'pct': 0, 'activities': []},
+                        3: {'total': 0, 'done': 0, 'pct': 0, 'activities': []}}
+        recordings = []
+        if cycle:
+            acts_rows = db.execute(
+                '''SELECT sa.*, c.label as chunk_label, c.start_time as chunk_start, c.end_time as chunk_end
+                   FROM session_activities sa
+                   LEFT JOIN chunks c ON c.id = sa.chunk_id
+                   WHERE sa.learning_cycle_id = ?
+                   ORDER BY sa.activity_order''',
+                (cycle['id'],)
+            ).fetchall()
+            activities = [dict(a) for a in acts_rows]
+            for a in activities:
+                a['meta'] = get_activity_label(a['activity_type'])
+                a['time_meta'] = get_time_label(a['time_of_day'])
+            by_day = {1: [], 2: [], 3: []}
+            for a in activities:
+                by_day[a['activity_day']].append(a)
+            for d in [1, 2, 3]:
+                total = len(by_day[d])
+                done = sum(1 for a in by_day[d] if a['completed'])
+                day_progress[d] = {
+                    'total': total, 'done': done,
+                    'pct': round(done / total * 100) if total else 0,
+                    'activities': by_day[d],
+                }
+            recordings = [dict(r) for r in db.execute(
+                'SELECT * FROM audio_recordings WHERE video_id = ? ORDER BY recorded_at DESC',
+                (video_db_id,)
+            ).fetchall()]
+
+        # Transcript segments for this chunk's time range
+        chunk_segments = [dict(s) for s in db.execute(
+            '''SELECT id, start_time, end_time, text, translation
+               FROM segments
+               WHERE video_id = ? AND start_time >= ? AND start_time < ?
+               ORDER BY start_time''',
+            (video_db_id, chunk['start_time'], chunk['end_time'])
+        ).fetchall()]
+
+        # Prev/next chunks for navigation
+        all_chunks = db.execute(
+            'SELECT id, label FROM chunks WHERE video_id = ? ORDER BY chunk_order',
+            (video_db_id,)
+        ).fetchall()
+        chunk_ids = [r['id'] for r in all_chunks]
+        cur_idx = chunk_ids.index(chunk_id) if chunk_id in chunk_ids else -1
+        prev_chunk_id = chunk_ids[cur_idx - 1] if cur_idx > 0 else None
+        next_chunk_id = chunk_ids[cur_idx + 1] if cur_idx < len(chunk_ids) - 1 else None
+
+        return render_template(
+            'chunk_cycle.html',
+            video=video, chunk=chunk, cycle=cycle,
+            day_progress=day_progress, activities=activities,
+            recordings=recordings, chunk_segments=chunk_segments,
+            activity_labels=ACTIVITY_LABELS, time_labels=TIME_OF_DAY_LABELS,
+            prev_chunk_id=prev_chunk_id, next_chunk_id=next_chunk_id,
+        )
+    except Exception as e:
+        flash(f'Lỗi: {str(e)}', 'error')
+        return redirect(url_for('cycle_dashboard', video_db_id=video_db_id))
+
+
+
+
+@app.route('/learning-path')
+def learning_path():
+    """Show all videos with their cycle status."""
+    try:
+        db = get_db()
+        rows = db.execute(
+            '''SELECT v.*, lc.id as cycle_id, lc.status as cycle_status,
+                      lc.comprehension_day3, lc.started_at, lc.completed_at,
+                      COUNT(DISTINCT sa.id) as total_activities,
+                      SUM(sa.completed) as done_activities
+               FROM videos v
+               LEFT JOIN learning_cycles lc ON lc.video_id = v.id
+               LEFT JOIN session_activities sa ON sa.learning_cycle_id = lc.id
+               GROUP BY v.id
+               ORDER BY lc.started_at DESC NULLS LAST, v.created_at DESC'''
+        ).fetchall()
+        videos = [dict(r) for r in rows]
+        # Stats
+        total_completed = sum(1 for v in videos if v.get('cycle_status') == 'completed')
+        in_progress = sum(1 for v in videos if v.get('cycle_status') in ('day1', 'day2', 'day3'))
+        avg_comp = 0
+        completed_with_score = [v for v in videos if v.get('comprehension_day3', 0)]
+        if completed_with_score:
+            avg_comp = round(sum(v['comprehension_day3'] for v in completed_with_score) / len(completed_with_score))
+        return render_template(
+            'learning_path.html',
+            videos=videos, total_completed=total_completed,
+            in_progress=in_progress, avg_comp=avg_comp
+        )
+    except Exception as e:
+        flash(f'Lỗi: {str(e)}', 'error')
+        return redirect(url_for('index'))
+
+
+@app.route('/review')
+def weekly_review():
+    """Weekly review dashboard."""
+    try:
+        db = get_db()
+        # Last 7 days practice
+        today = datetime.date.today()
+        week_ago = (today - datetime.timedelta(days=6)).isoformat()
+        sessions = db.execute(
+            '''SELECT date, SUM(seconds) as total_seconds
+               FROM practice_sessions WHERE date >= ?
+               GROUP BY date ORDER BY date''',
+            (week_ago,)
+        ).fetchall()
+        daily_practice = {r['date']: r['total_seconds'] for r in sessions}
+        # Fill missing days
+        days_data = []
+        for i in range(6, -1, -1):
+            day = (today - datetime.timedelta(days=i)).isoformat()
+            days_data.append({'date': day, 'seconds': daily_practice.get(day, 0)})
+        total_week_seconds = sum(d['seconds'] for d in days_data)
+
+        # Completed cycles in last 30 days
+        thirty_ago = (today - datetime.timedelta(days=30)).isoformat()
+        completed_cycles = db.execute(
+            '''SELECT lc.*, v.title, v.video_id as yt_id, v.language
+               FROM learning_cycles lc
+               JOIN videos v ON v.id = lc.video_id
+               WHERE lc.status = 'completed' AND lc.completed_at >= ?
+               ORDER BY lc.completed_at DESC''',
+            (thirty_ago,)
+        ).fetchall()
+
+        # Recent recordings
+        recordings = db.execute(
+            '''SELECT ar.*, v.title as video_title, v.video_id as yt_id
+               FROM audio_recordings ar
+               JOIN videos v ON v.id = ar.video_id
+               ORDER BY ar.recorded_at DESC LIMIT 20''',
+        ).fetchall()
+
+        # Active cycles
+        active_cycles = db.execute(
+            '''SELECT lc.*, v.title, v.video_id as yt_id,
+                      COUNT(sa.id) as total_acts,
+                      SUM(sa.completed) as done_acts
+               FROM learning_cycles lc
+               JOIN videos v ON v.id = lc.video_id
+               LEFT JOIN session_activities sa ON sa.learning_cycle_id = lc.id
+               WHERE lc.status IN ('day1', 'day2', 'day3')
+               GROUP BY lc.id
+               ORDER BY lc.started_at DESC''',
+        ).fetchall()
+
+        return render_template(
+            'weekly_review.html',
+            days_data=days_data, total_week_seconds=total_week_seconds,
+            completed_cycles=[dict(c) for c in completed_cycles],
+            recordings=[dict(r) for r in recordings],
+            active_cycles=[dict(c) for c in active_cycles]
+        )
+    except Exception as e:
+        flash(f'Lỗi: {str(e)}', 'error')
+        return redirect(url_for('index'))
+
+
+# ── Cycle API ─────────────────────────────────────────────────────────────────
+
+@app.route('/api/video/<int:video_db_id>/split-chunks', methods=['POST'])
+def api_split_chunks(video_db_id):
+    """Auto-split a video into ~4-minute chunks and create one learning_cycle per chunk."""
+    try:
+        db = get_db()
+        video = db.execute('SELECT * FROM videos WHERE id = ?', (video_db_id,)).fetchone()
+        if video is None:
+            return jsonify({'error': 'Video không tồn tại.'}), 404
+
+        # Delete all existing chunks and their cycles for this video
+        old_chunk_ids = [r['id'] for r in db.execute(
+            'SELECT id FROM chunks WHERE video_id = ?', (video_db_id,)
+        ).fetchall()]
+        if old_chunk_ids:
+            db.execute(
+                f'DELETE FROM learning_cycles WHERE chunk_id IN ({",".join("?" * len(old_chunk_ids))})',
+                old_chunk_ids
+            )
+            db.execute('DELETE FROM chunks WHERE video_id = ?', (video_db_id,))
+
+        # Also delete legacy video-level cycles (chunk_id IS NULL)
+        db.execute(
+            'DELETE FROM learning_cycles WHERE video_id = ? AND chunk_id IS NULL', (video_db_id,)
+        )
+
+        # Build chunks from transcript segments
+        segs = db.execute(
+            'SELECT start_time, end_time FROM segments WHERE video_id = ? ORDER BY segment_order',
+            (video_db_id,)
+        ).fetchall()
+        chunk_dicts = auto_split_chunks(video_db_id, [dict(s) for s in segs])
+
+        # Fallback: split by duration
+        if not chunk_dicts and video['duration'] and video['duration'] > 0:
+            dur = video['duration']
+            target = 4 * 60  # 4 minutes
+            n = max(2, round(dur / target))
+            step = dur / n
+            labels = ['Chunk A', 'Chunk B', 'Chunk C', 'Chunk D', 'Chunk E',
+                      'Chunk F', 'Chunk G', 'Chunk H']
+            chunk_dicts = [
+                {
+                    'video_id': video_db_id,
+                    'chunk_order': i,
+                    'label': labels[i] if i < len(labels) else f'Chunk {i + 1}',
+                    'start_time': round(i * step, 3),
+                    'end_time': round(min((i + 1) * step, dur), 3),
+                }
+                for i in range(n)
+            ]
+        elif not chunk_dicts:
+            chunk_dicts = [
+                {'video_id': video_db_id, 'chunk_order': 0,
+                 'label': 'Chunk A', 'start_time': 0, 'end_time': 0},
+            ]
+
+        today = datetime.date.today().isoformat()
+        created = []
+        for c in chunk_dicts:
+            cur = db.execute(
+                'INSERT INTO chunks (video_id, chunk_order, label, start_time, end_time) VALUES (?, ?, ?, ?, ?)',
+                (c['video_id'], c['chunk_order'], c['label'], c['start_time'], c['end_time'])
+            )
+            chunk_db_id = cur.lastrowid
+
+            # Create a learning_cycle for this chunk
+            cyc = db.execute(
+                '''INSERT INTO learning_cycles (video_id, chunk_id, status, started_at)
+                   VALUES (?, ?, 'not_started', ?)''',
+                (video_db_id, chunk_db_id, today)
+            )
+            created.append({'chunk_id': chunk_db_id, 'cycle_id': cyc.lastrowid,
+                            'label': c['label'],
+                            'start_time': c['start_time'], 'end_time': c['end_time']})
+        db.commit()
+        return jsonify({'success': True, 'chunks': created})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/chunk/<int:chunk_id>/cycle/start', methods=['POST'])
+def api_chunk_cycle_start(chunk_id):
+    """Start (or restart) the 3-day cycle for a specific chunk."""
+    try:
+        db = get_db()
+        chunk = db.execute('SELECT * FROM chunks WHERE id = ?', (chunk_id,)).fetchone()
+        if chunk is None:
+            return jsonify({'error': 'Chunk không tồn tại.'}), 404
+
+        cycle = db.execute(
+            'SELECT * FROM learning_cycles WHERE chunk_id = ?', (chunk_id,)
+        ).fetchone()
+        if cycle is None:
+            return jsonify({'error': 'Không tìm thấy cycle cho chunk này.'}), 404
+
+        # Reset activities
+        db.execute('DELETE FROM session_activities WHERE learning_cycle_id = ?', (cycle['id'],))
+
+        today = datetime.date.today().isoformat()
+        db.execute(
+            '''UPDATE learning_cycles SET status = 'day1', started_at = ?,
+               day2_started_at = NULL, day3_started_at = NULL, completed_at = NULL,
+               comprehension_day1 = 0, comprehension_day3 = 0
+               WHERE id = ?''',
+            (today, cycle['id'])
+        )
+
+        # Generate per-chunk schedule
+        activities = generate_per_chunk_schedule(cycle['id'], chunk_id)
+        for act in activities:
+            db.execute(
+                '''INSERT INTO session_activities
+                   (learning_cycle_id, activity_day, time_of_day, activity_type,
+                    chunk_id, speed, duration_minutes, activity_order)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                (act['learning_cycle_id'], act['activity_day'], act['time_of_day'],
+                 act['activity_type'], act['chunk_id'], act['speed'],
+                 act['duration_minutes'], act['activity_order'])
+            )
+        db.commit()
+        return jsonify({'success': True, 'cycle_id': cycle['id'], 'chunk_id': chunk_id})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/cycle-by-id/<int:cycle_id>/advance', methods=['POST'])
+def api_cycle_by_id_advance(cycle_id):
+    """Advance a specific cycle (by cycle id) to the next day."""
+    try:
+        db = get_db()
+        cycle = db.execute('SELECT * FROM learning_cycles WHERE id = ?', (cycle_id,)).fetchone()
+        if cycle is None:
+            return jsonify({'error': 'Không tìm thấy cycle.'}), 404
+        today = datetime.date.today().isoformat()
+        next_map = {'day1': ('day2', 'day2_started_at'),
+                    'day2': ('day3', 'day3_started_at'),
+                    'day3': ('completed', 'completed_at')}
+        current = cycle['status']
+        if current not in next_map:
+            return jsonify({'error': 'Cycle đã completed hoặc chưa bắt đầu.'}), 400
+        new_status, date_col = next_map[current]
+        db.execute(
+            f'UPDATE learning_cycles SET status = ?, {date_col} = ? WHERE id = ?',
+            (new_status, today, cycle_id)
+        )
+        db.commit()
+        return jsonify({'success': True, 'new_status': new_status})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/cycle-by-id/<int:cycle_id>/comprehension', methods=['POST'])
+def api_cycle_by_id_comprehension(cycle_id):
+    """Save comprehension % for a specific cycle by cycle id."""
+    try:
+        data = request.get_json(silent=True) or {}
+        pct = int(data.get('pct', 0))
+        day = int(data.get('day', 1))
+        if not (0 <= pct <= 100) or day not in (1, 3):
+            return jsonify({'error': 'Tham số không hợp lệ.'}), 400
+        db = get_db()
+        col = f'comprehension_day{day}'
+        db.execute(f'UPDATE learning_cycles SET {col} = ? WHERE id = ?', (pct, cycle_id))
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/cycle/<int:video_db_id>/start', methods=['POST'])
+def api_cycle_start(video_db_id):
+    """Legacy: split video + start all chunk cycles at once."""
+    try:
+        # Re-use split-chunks logic then start all cycles
+        from flask import current_app
+        with current_app.test_request_context():
+            pass  # just to validate context
+        db = get_db()
+        video = db.execute('SELECT * FROM videos WHERE id = ?', (video_db_id,)).fetchone()
+        if video is None:
+            return jsonify({'error': 'Video không tồn tại.'}), 404
+
+        # Delete old data
+        old_chunk_ids = [r['id'] for r in db.execute(
+            'SELECT id FROM chunks WHERE video_id = ?', (video_db_id,)
+        ).fetchall()]
+        if old_chunk_ids:
+            db.execute(
+                f'DELETE FROM learning_cycles WHERE chunk_id IN ({",".join("?" * len(old_chunk_ids))})',
+                old_chunk_ids
+            )
+            db.execute('DELETE FROM chunks WHERE video_id = ?', (video_db_id,))
+        db.execute('DELETE FROM learning_cycles WHERE video_id = ? AND chunk_id IS NULL', (video_db_id,))
+
+        segs = db.execute(
+            'SELECT start_time, end_time FROM segments WHERE video_id = ? ORDER BY segment_order',
+            (video_db_id,)
+        ).fetchall()
+        chunk_dicts = auto_split_chunks(video_db_id, [dict(s) for s in segs])
+        if not chunk_dicts and video['duration'] and video['duration'] > 0:
+            dur = video['duration']
+            target = 4 * 60
+            n = max(2, round(dur / target))
+            step = dur / n
+            labels = ['Chunk A', 'Chunk B', 'Chunk C', 'Chunk D', 'Chunk E',
+                      'Chunk F', 'Chunk G', 'Chunk H']
+            chunk_dicts = [
+                {'video_id': video_db_id, 'chunk_order': i,
+                 'label': labels[i] if i < len(labels) else f'Chunk {i + 1}',
+                 'start_time': round(i * step, 3),
+                 'end_time': round(min((i + 1) * step, dur), 3)}
+                for i in range(n)
+            ]
+        elif not chunk_dicts:
+            chunk_dicts = [
+                {'video_id': video_db_id, 'chunk_order': 0,
+                 'label': 'Chunk A', 'start_time': 0, 'end_time': 0}
+            ]
+
+        today = datetime.date.today().isoformat()
+        total_acts = 0
+        for c in chunk_dicts:
+            cur = db.execute(
+                'INSERT INTO chunks (video_id, chunk_order, label, start_time, end_time) VALUES (?, ?, ?, ?, ?)',
+                (c['video_id'], c['chunk_order'], c['label'], c['start_time'], c['end_time'])
+            )
+            chunk_db_id = cur.lastrowid
+            cyc = db.execute(
+                '''INSERT INTO learning_cycles (video_id, chunk_id, status, started_at)
+                   VALUES (?, ?, 'day1', ?)''',
+                (video_db_id, chunk_db_id, today)
+            )
+            cycle_id = cyc.lastrowid
+            acts = generate_per_chunk_schedule(cycle_id, chunk_db_id)
+            for act in acts:
+                db.execute(
+                    '''INSERT INTO session_activities
+                       (learning_cycle_id, activity_day, time_of_day, activity_type,
+                        chunk_id, speed, duration_minutes, activity_order)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                    (act['learning_cycle_id'], act['activity_day'], act['time_of_day'],
+                     act['activity_type'], act['chunk_id'], act['speed'],
+                     act['duration_minutes'], act['activity_order'])
+                )
+                total_acts += 1
+        db.commit()
+        return jsonify({'success': True, 'chunks': len(chunk_dicts), 'activities': total_acts})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/cycle/<int:video_db_id>/status')
+def api_cycle_status(video_db_id):
+    try:
+        db = get_db()
+        cycles = db.execute(
+            '''SELECT lc.*, COUNT(sa.id) as total_acts, SUM(sa.completed) as done_acts
+               FROM learning_cycles lc
+               LEFT JOIN session_activities sa ON sa.learning_cycle_id = lc.id
+               WHERE lc.video_id = ?
+               GROUP BY lc.id''',
+            (video_db_id,)
+        ).fetchall()
+        if not cycles:
+            return jsonify({'status': 'none'})
+        summary = []
+        for c in cycles:
+            total = c['total_acts'] or 0
+            done = c['done_acts'] or 0
+            summary.append({
+                'cycle_id': c['id'],
+                'chunk_id': c['chunk_id'],
+                'status': c['status'],
+                'pct': round(done / total * 100) if total else 0,
+            })
+        return jsonify({'cycles': summary})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/cycle/<int:video_db_id>/advance', methods=['POST'])
+def api_cycle_advance(video_db_id):
+    """Advance the first in-progress cycle for a video (legacy compat)."""
+    try:
+        db = get_db()
+        cycle = db.execute(
+            '''SELECT * FROM learning_cycles WHERE video_id = ? AND status IN ('day1','day2','day3')
+               ORDER BY id LIMIT 1''',
+            (video_db_id,)
+        ).fetchone()
+        if cycle is None:
+            return jsonify({'error': 'Không có cycle đang hoạt động.'}), 404
+        today = datetime.date.today().isoformat()
+        next_map = {'day1': ('day2', 'day2_started_at'), 'day2': ('day3', 'day3_started_at'),
+                    'day3': ('completed', 'completed_at')}
+        new_status, date_col = next_map[cycle['status']]
+        db.execute(
+            f'UPDATE learning_cycles SET status = ?, {date_col} = ? WHERE id = ?',
+            (new_status, today, cycle['id'])
+        )
+        db.commit()
+        return jsonify({'success': True, 'new_status': new_status})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/cycle/<int:video_db_id>/comprehension', methods=['POST'])
+def api_cycle_comprehension(video_db_id):
+    """Save comprehension % estimate (legacy – targets first cycle)."""
+    try:
+        data = request.get_json(silent=True) or {}
+        pct = int(data.get('pct', 0))
+        day = int(data.get('day', 1))
+        if not (0 <= pct <= 100) or day not in (1, 3):
+            return jsonify({'error': 'Tham số không hợp lệ.'}), 400
+        db = get_db()
+        col = f'comprehension_day{day}'
+        db.execute(
+            f'UPDATE learning_cycles SET {col} = ? WHERE video_id = ? ORDER BY id LIMIT 1',
+            (pct, video_db_id)
+        )
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+# ── Chunks API ────────────────────────────────────────────────────────────────
+
+@app.route('/api/chunks/<int:video_db_id>')
+def api_get_chunks(video_db_id):
+    try:
+        db = get_db()
+        rows = db.execute(
+            'SELECT * FROM chunks WHERE video_id = ? ORDER BY chunk_order', (video_db_id,)
+        ).fetchall()
+        chunks = []
+        for r in rows:
+            c = dict(r)
+            try:
+                c['focus_expressions'] = json.loads(c['focus_expressions'] or '[]')
+            except Exception:
+                c['focus_expressions'] = []
+            chunks.append(c)
+        return jsonify(chunks)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/chunks/<int:chunk_id>/expressions', methods=['PATCH'])
+def api_update_chunk_expressions(chunk_id):
+    """Save focus expressions for a chunk."""
+    try:
+        data = request.get_json(silent=True) or {}
+        expressions = data.get('expressions', [])
+        if not isinstance(expressions, list):
+            return jsonify({'error': 'expressions phải là mảng.'}), 400
+        # Sanitize
+        expressions = [str(e).strip() for e in expressions if str(e).strip()][:15]
+        db = get_db()
+        db.execute(
+            'UPDATE chunks SET focus_expressions = ? WHERE id = ?',
+            (json.dumps(expressions, ensure_ascii=False), chunk_id)
+        )
+        db.commit()
+        return jsonify({'success': True, 'count': len(expressions)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ── Session Activity API ──────────────────────────────────────────────────────
+
+@app.route('/api/activity/<int:activity_id>/complete', methods=['POST'])
+def api_complete_activity(activity_id):
+    """Toggle activity completion."""
+    try:
+        data = request.get_json(silent=True) or {}
+        completed = int(bool(data.get('completed', True)))
+        db = get_db()
+        act = db.execute('SELECT * FROM session_activities WHERE id = ?', (activity_id,)).fetchone()
+        if act is None:
+            return jsonify({'error': 'Activity không tồn tại.'}), 404
+        now = datetime.datetime.now().isoformat() if completed else None
+        db.execute(
+            'UPDATE session_activities SET completed = ?, completed_at = ? WHERE id = ?',
+            (completed, now, activity_id)
+        )
+        db.commit()
+        return jsonify({'success': True, 'completed': completed})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ── Recording API ─────────────────────────────────────────────────────────────
+
+ALLOWED_AUDIO = {'webm', 'mp3', 'wav', 'ogg', 'm4a', 'opus'}
+
+def _allowed_audio(filename: str) -> bool:
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_AUDIO
+
+
+@app.route('/api/recording/upload', methods=['POST'])
+def api_upload_recording():
+    """Upload a free-recall or free-speech audio recording."""
+    try:
+        video_id = request.form.get('video_id', type=int)
+        activity_id = request.form.get('activity_id', type=int)
+        activity_type = request.form.get('activity_type', 'free_recall')
+        duration = request.form.get('duration', 0, type=int)
+        notes = (request.form.get('notes') or '').strip()[:500]
+
+        if not video_id:
+            return jsonify({'error': 'Thiếu video_id.'}), 400
+
+        audio_file = request.files.get('audio')
+        if not audio_file or not audio_file.filename:
+            return jsonify({'error': 'Không có file audio.'}), 400
+        if not _allowed_audio(audio_file.filename):
+            return jsonify({'error': 'Định dạng file không được hỗ trợ.'}), 400
+
+        # Build a safe filename
+        ext = audio_file.filename.rsplit('.', 1)[-1].lower()
+        ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'rec_{video_id}_{activity_type}_{ts}.{ext}'
+
+        recordings_dir = os.path.join(app.static_folder, 'recordings')
+        os.makedirs(recordings_dir, exist_ok=True)
+        audio_file.save(os.path.join(recordings_dir, filename))
+
+        db = get_db()
+        cur = db.execute(
+            '''INSERT INTO audio_recordings (video_id, activity_id, activity_type, filename, duration_seconds, self_notes)
+               VALUES (?, ?, ?, ?, ?, ?)''',
+            (video_id, activity_id, activity_type, filename, duration, notes or None)
+        )
+        db.commit()
+        return jsonify({'success': True, 'id': cur.lastrowid, 'filename': filename})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/recording/<int:recording_id>', methods=['DELETE'])
+def api_delete_recording(recording_id):
+    try:
+        db = get_db()
+        row = db.execute('SELECT * FROM audio_recordings WHERE id = ?', (recording_id,)).fetchone()
+        if row is None:
+            return jsonify({'error': 'Không tìm thấy recording.'}), 404
+        filepath = os.path.join(app.static_folder, 'recordings', row['filename'])
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        db.execute('DELETE FROM audio_recordings WHERE id = ?', (recording_id,))
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/recording/<int:recording_id>/notes', methods=['PATCH'])
+def api_update_recording_notes(recording_id):
+    try:
+        data = request.get_json(silent=True) or {}
+        notes = (data.get('notes') or '').strip()[:500]
+        db = get_db()
+        db.execute('UPDATE audio_recordings SET self_notes = ? WHERE id = ?', (notes, recording_id))
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ── Learning Sources ──────────────────────────────────────────────────────────
+
+@app.route('/sources')
+def learning_sources():
+    """Learning sources management page."""
+    try:
+        db = get_db()
+        rows = db.execute(
+            'SELECT * FROM learning_sources ORDER BY phase, position, id'
+        ).fetchall()
+        sources_n2 = [dict(r) for r in rows if r['phase'] == 'N2']
+        sources_n1 = [dict(r) for r in rows if r['phase'] == 'N1']
+        return render_template('sources.html', sources_n2=sources_n2, sources_n1=sources_n1)
+    except Exception as e:
+        flash(f'Lỗi: {str(e)}', 'error')
+        return redirect(url_for('index'))
+
+
+@app.route('/api/source', methods=['POST'])
+def api_create_source():
+    data = request.get_json(silent=True) or {}
+    phase = data.get('phase', 'N2').strip()
+    channel_name = (data.get('channel_name') or '').strip()
+    if not channel_name:
+        return jsonify({'error': 'Thiếu tên kênh'}), 400
+    if phase not in ('N2', 'N1'):
+        phase = 'N2'
+    try:
+        db = get_db()
+        max_pos = db.execute(
+            'SELECT MAX(position) FROM learning_sources WHERE phase = ?', (phase,)
+        ).fetchone()[0] or 0
+        cursor = db.execute(
+            '''INSERT INTO learning_sources (phase, channel_name, link, topic, level, reason, position)
+               VALUES (?, ?, ?, ?, ?, ?, ?)''',
+            (phase, channel_name, data.get('link', ''), data.get('topic', ''),
+             data.get('level', ''), data.get('reason', ''), max_pos + 1)
+        )
+        db.commit()
+        return jsonify({'success': True, 'id': cursor.lastrowid})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/source/<int:source_id>', methods=['PATCH'])
+def api_update_source(source_id):
+    data = request.get_json(silent=True) or {}
+    allowed = ('phase', 'channel_name', 'link', 'topic', 'level', 'reason', 'position')
+    updates = {k: v for k, v in data.items() if k in allowed}
+    if not updates:
+        return jsonify({'error': 'Không có dữ liệu cập nhật'}), 400
+    if 'phase' in updates and updates['phase'] not in ('N2', 'N1'):
+        return jsonify({'error': 'phase phải là N2 hoặc N1'}), 400
+    try:
+        db = get_db()
+        set_clause = ', '.join(f'{k} = ?' for k in updates)
+        db.execute(
+            f'UPDATE learning_sources SET {set_clause} WHERE id = ?',
+            list(updates.values()) + [source_id]
+        )
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/source/<int:source_id>', methods=['DELETE'])
+def api_delete_source(source_id):
+    try:
+        db = get_db()
+        db.execute('DELETE FROM learning_sources WHERE id = ?', (source_id,))
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     with app.app_context():
         init_db()
     app.run(debug=True, host='0.0.0.0', port=5015)
+

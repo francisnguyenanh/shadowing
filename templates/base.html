@@ -4,16 +4,28 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}Tomo Shadow App{% endblock %}</title>
+  <!-- Google Fonts: Inter + Noto Sans Vietnamese (excellent support for Japanese & Vietnamese) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <script>
     tailwind.config = {
       darkMode: 'class',
-      theme: { extend: {} }
+      theme: {
+        extend: {
+          fontFamily: {
+            'sans': ['Inter', 'Noto Sans', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            'display': ['Inter', 'Noto Sans', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            'mono': ['Menlo', 'Monaco', 'Courier New', 'monospace'],
+          }
+        }
+      }
     }
   </script>
 </head>
-<body class="bg-gray-950 text-gray-100 min-h-full flex flex-col">
+<body class="bg-gray-950 text-gray-100 min-h-full flex flex-col" style="font-family: Inter, 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
 
   <!-- Navbar -->
   <nav class="bg-gray-900 border-b border-gray-800 sticky top-0 z-50">
@@ -22,6 +34,18 @@
         Tomo Shadow App
       </a>
       <div class="flex items-center gap-3">
+        <a href="{{ url_for('weekly_review') }}"
+           class="text-emerald-400 hover:text-emerald-300 text-sm font-semibold px-3 py-2 rounded-lg transition border border-transparent hover:border-emerald-700">
+          📈 Review
+        </a>
+        <a href="{{ url_for('learning_path') }}"
+           class="text-purple-400 hover:text-purple-300 text-sm font-semibold px-3 py-2 rounded-lg transition border border-transparent hover:border-purple-700">
+          🗺 Lộ trình
+        </a>
+        <a href="{{ url_for('learning_sources') }}"
+           class="text-cyan-400 hover:text-cyan-300 text-sm font-semibold px-3 py-2 rounded-lg transition border border-transparent hover:border-cyan-700">
+          📚 Nguồn học
+        </a>
         <a href="{{ url_for('bookmarks_all') }}"
            class="text-yellow-400 hover:text-yellow-300 text-sm font-semibold px-3 py-2 rounded-lg transition border border-transparent hover:border-yellow-700">
           ★ Bookmarks
@@ -52,11 +76,11 @@
   <!-- Main content -->
   <main class="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
     {% block content %}{% endblock %}
-  </main>
+  </
 
   <!-- Footer -->
   <footer class="bg-gray-900 border-t border-gray-800 text-center text-xs text-gray-400 py-3">
-    \Tomo Shadow App — Luyện nghe & nói ngoại ngữ
+    Tomo Shadow App
   </footer>
 
 {% block scripts %}{% endblock %}

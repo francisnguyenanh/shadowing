@@ -1,3 +1,32 @@
+/* ── Vietnamese Font Optimization ──────────────────────────────────────── */
+:root {
+  --font-sans: 'Inter', 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Menlo', 'Monaco', 'Courier New', monospace;
+}
+
+html, body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sans);
+  letter-spacing: -0.015em;
+}
+
+/* Vietnamese text: better spacing */
+p, span, a, button, textarea, input {
+  font-family: var(--font-sans);
+}
+
+code, pre, .font-mono {
+  font-family: var(--font-mono);
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+
 #youtube-player,
 #youtube-player iframe {
   width: 100% !important;

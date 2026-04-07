@@ -1,0 +1,430 @@
+{% extends 'base.html' %}
+{% block title %}3-Day Cycle — {{ video.title or video.video_id }}{% endblock %}
+
+{% block content %}
+<!-- Pass data to JS -->
+<script id="cycle-data" type="application/json">
+{
+  "videoDbId": {{ video.id }},
+  "cycleId": {{ cycle.id if cycle else 'null' }},
+  "cycleStatus": {{ (cycle.status if cycle else 'none') | tojson }},
+  "chunks": {{ chunks | tojson }}
+}
+</script>
+
+<!-- Header -->
+<div class="mb-6 flex items-start gap-4 flex-wrap">
+  <div class="flex-1 min-w-0">
+    <div class="flex items-center gap-2 mb-1">
+      <a href="{{ url_for('index') }}" class="text-gray-500 hover:text-gray-300 text-sm transition">← Danh sách</a>
+      <span class="text-gray-700">/</span>
+      <span class="text-xs text-indigo-400 font-semibold uppercase tracking-wider">Chu kỳ 3 ngày</span>
+    </div>
+    <h1 class="text-lg font-bold text-gray-100 line-clamp-2">{{ video.title or video.youtube_url }}</h1>
+    <div class="flex items-center gap-3 mt-1 flex-wrap">
+      {% if video.language == 'ja' %}
+        <span class="text-xs bg-red-900 text-red-300 border border-red-700 px-2 py-0.5 rounded-full">🇯🇵 日本語</span>
+      {% else %}
+        <span class="text-xs bg-blue-900 text-blue-300 border border-blue-700 px-2 py-0.5 rounded-full">🇬🇧 English</span>
+      {% endif %}
+      {% if video.duration %}
+        <span class="text-xs text-gray-400">{{ (video.duration // 60)|int }}:{{ '%02d' % (video.duration % 60)|int }} phút</span>
+      {% endif %}
+      {% if cycle %}
+        {% if cycle.status == 'completed' %}
+          <span class="text-xs bg-green-900 text-green-300 border border-green-700 px-2 py-0.5 rounded-full">✅ Hoàn thành</span>
+        {% elif cycle.status == 'day1' %}
+          <span class="text-xs bg-blue-900 text-blue-300 border border-blue-700 px-2 py-0.5 rounded-full">📘 Ngày 1</span>
+        {% elif cycle.status == 'day2' %}
+          <span class="text-xs bg-green-900 text-green-300 border border-green-700 px-2 py-0.5 rounded-full">📗 Ngày 2</span>
+        {% elif cycle.status == 'day3' %}
+          <span class="text-xs bg-orange-900 text-orange-300 border border-orange-700 px-2 py-0.5 rounded-full">📕 Ngày 3</span>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+  <div class="flex gap-2 flex-wrap flex-none">
+    <a href="{{ url_for('player', video_db_id=video.id) }}"
+       class="bg-indigo-700 hover:bg-indigo-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">
+       ▶ Luyện tập
+    </a>
+    {% if not cycle %}
+    <button onclick="startCycle()"
+            class="bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">
+      🚀 Bắt đầu chu kỳ
+    </button>
+    {% else %}
+    <button onclick="restartCycle()"
+            class="bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-semibold px-4 py-2 rounded-lg transition"
+            title="Xóa tiến trình cũ và bắt đầu lại">
+      ↺ Bắt đầu lại
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+{% if not cycle %}
+<!-- No cycle yet – intro -->
+<div class="bg-gray-900 border border-gray-800 rounded-2xl p-8 text-center max-w-2xl mx-auto">
+  <h2 class="text-xl font-bold text-gray-100 mb-3">Phương pháp 3 ngày tối ưu</h2>
+  <p class="text-gray-400 text-sm mb-6 leading-relaxed">
+    Video sẽ được chia thành Chunk A và Chunk B (~3-5 phút mỗi chunk).<br>
+    App sẽ tạo lịch học 15 hoạt động qua 3 ngày để tối ưu hóa việc luyện nghe & nói.
+  </p>
+  <div class="grid grid-cols-3 gap-4 mb-6 text-left">
+    <div class="bg-blue-950 border border-blue-800 rounded-xl p-4">
+      <div class="text-2xl mb-2">📘</div>
+      <div class="text-sm font-semibold text-blue-300 mb-1">Ngày 1 – Nạp & Hiểu</div>
+      <p class="text-xs text-gray-400">Nghe toàn video, đọc transcript, gạch 10 expressions, nói lại ý chính 60"</p>
+    </div>
+    <div class="bg-green-950 border border-green-800 rounded-xl p-4">
+      <div class="text-2xl mb-2">📗</div>
+      <div class="text-sm font-semibold text-green-300 mb-1">Ngày 2 – Luyện Âm & Rhythm</div>
+      <p class="text-xs text-gray-400">Shadow Chunk A ở 1.0× → 1.25×, Free Recall 2 phút, nói tự do 5 phút</p>
+    </div>
+    <div class="bg-orange-950 border border-orange-800 rounded-xl p-4">
+      <div class="text-2xl mb-2">📕</div>
+      <div class="text-sm font-semibold text-orange-300 mb-1">Ngày 3 – Tích Hợp & Output</div>
+      <p class="text-xs text-gray-400">Shadow Chunk B, nối A+B liền mạch, ghi âm tự đánh giá</p>
+    </div>
+  </div>
+  {% if not video.duration %}
+  <div class="bg-yellow-950 border border-yellow-800 rounded-xl p-3 mb-4 text-xs text-yellow-300 text-left">
+    ⚠️ Video này chưa có transcript. Bạn vẫn có thể bắt đầu chu kỳ, nhưng các hoạt động sẽ không có chunk chi tiết.
+    <a href="{{ url_for('show_prompt', video_db_id=video.id) }}" class="underline ml-1">Thêm transcript →</a>
+  </div>
+  {% endif %}
+  <button onclick="startCycle()"
+          class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base px-8 py-3 rounded-xl transition">
+    🚀 Bắt đầu chu kỳ 3 ngày
+  </button>
+</div>
+
+{% else %}
+<!-- Cycle is active or completed -->
+
+<!-- Progress overview (3 rings) -->
+<div class="grid grid-cols-3 gap-4 mb-6">
+  {% for day_num, day_info in [(1, 'day1'), (2, 'day2'), (3, 'day3')] %}
+  {% set dp = day_progress[day_num] %}
+  {% set color = 'blue' if day_num == 1 else ('green' if day_num == 2 else 'orange') %}
+  {% set day_name = 'Ngày 1 – Nạp & Hiểu' if day_num == 1 else ('Ngày 2 – Luyện Âm' if day_num == 2 else 'Ngày 3 – Tích Hợp') %}
+  {% set day_icon = '📘' if day_num == 1 else ('📗' if day_num == 2 else '📕') %}
+  {% set is_current = cycle.status == day_info %}
+  {% set is_locked = (day_num == 2 and cycle.status == 'day1') or (day_num == 3 and cycle.status in ('day1', 'day2')) %}
+  <div class="bg-gray-900 border rounded-xl p-4 {{ 'border-indigo-600 ring-1 ring-indigo-600' if is_current else 'border-gray-800' }}">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-sm font-semibold text-gray-200">{{ day_icon }} {{ day_name }}</span>
+      {% if cycle.status == 'completed' or (day_num == 1 and cycle.status in ('day2', 'day3', 'completed')) or (day_num == 2 and cycle.status in ('day3', 'completed')) %}
+        <span class="text-xs text-green-400">✓ Xong</span>
+      {% elif is_current %}
+        <span class="text-xs text-indigo-400 animate-pulse">● Đang học</span>
+      {% elif is_locked %}
+        <span class="text-xs text-gray-600">🔒</span>
+      {% endif %}
+    </div>
+    <!-- Progress bar -->
+    <div class="w-full h-2 bg-gray-800 rounded-full overflow-hidden mb-2">
+      <div class="h-full rounded-full transition-all duration-500
+                  {% if color == 'blue' %}bg-blue-500{% elif color == 'green' %}bg-green-500{% else %}bg-orange-500{% endif %}"
+           style="width: {{ dp.pct if dp else 0 }}%"></div>
+    </div>
+    <div class="flex items-center justify-between text-xs text-gray-400">
+      <span>{{ dp.done if dp else 0 }} / {{ dp.total if dp else 0 }} hoạt động</span>
+      <span class="font-bold {{ 'text-blue-400' if color == 'blue' else ('text-green-400' if color == 'green' else 'text-orange-400') }}">
+        {{ dp.pct if dp else 0 }}%
+      </span>
+    </div>
+    {% if is_current and dp %}
+      {% if dp.done == dp.total and dp.total > 0 %}
+      <button onclick="advanceCycle()"
+              class="mt-3 w-full text-xs font-semibold py-1.5 rounded-lg transition
+                     bg-emerald-700 hover:bg-emerald-600 text-white">
+        → Chuyển sang {{ 'Ngày ' + (day_num + 1)|string if day_num < 3 else 'Hoàn thành' }}
+      </button>
+      {% endif %}
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Chunks section -->
+{% if chunks %}
+<div class="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-6">
+  <h3 class="text-sm font-semibold text-gray-200 mb-3">🎬 Video Chunks</h3>
+  <div class="flex flex-wrap gap-3">
+    {% for chunk in chunks %}
+    <div class="bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 flex-1 min-w-[180px]">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm font-bold text-indigo-300">{{ chunk.label }}</span>
+        <span class="text-xs font-mono text-gray-400">
+          {{ '%02d:%02d' | format((chunk.start_time // 60)|int, (chunk.start_time % 60)|int) }}
+          –
+          {{ '%02d:%02d' | format((chunk.end_time // 60)|int, (chunk.end_time % 60)|int) }}
+        </span>
+      </div>
+      <div class="text-xs text-gray-500 mb-2">
+        Chênh lệch: {{ ((chunk.end_time - chunk.start_time) / 60) | round(1) }} phút
+      </div>
+      <!-- Focus expressions -->
+      <div id="expr-display-{{ chunk.id }}" class="flex flex-wrap gap-1 mb-2">
+        {% for expr in chunk.focus_expressions %}
+        <span class="bg-yellow-900 text-yellow-300 border border-yellow-700 text-xs px-2 py-0.5 rounded-full">{{ expr }}</span>
+        {% else %}
+        <span class="text-xs text-gray-600 italic">Chưa có focus expressions</span>
+        {% endfor %}
+      </div>
+      <button onclick="openExprEditor({{ chunk.id }}, {{ chunk.focus_expressions | tojson | e }})"
+              class="text-xs text-indigo-400 hover:text-indigo-300 transition">
+        ✏️ Sửa expressions
+      </button>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Day-by-day activities (accordion) -->
+{% for day_num in [1, 2, 3] %}
+{% set dp = day_progress[day_num] %}
+{% set day_acts = dp.activities if dp else [] %}
+{% set color_class = 'blue' if day_num == 1 else ('green' if day_num == 2 else 'orange') %}
+{% set day_title = '📘 Ngày 1 – Nạp & Hiểu (~25 phút tối)' if day_num == 1 else ('📗 Ngày 2 – Luyện Âm & Rhythm (~40+30+30 phút)' if day_num == 2 else '📕 Ngày 3 – Tích Hợp & Output') %}
+
+<div class="bg-gray-900 border border-gray-800 rounded-xl mb-4 overflow-hidden" id="day-section-{{ day_num }}">
+  <!-- Day header (accordion toggle) -->
+  <button onclick="toggleDay({{ day_num }})"
+          class="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-800 transition">
+    <span class="text-sm font-bold text-gray-100 flex-1">{{ day_title }}</span>
+    <span class="text-xs text-gray-400">{{ dp.done if dp else 0 }}/{{ dp.total if dp else 0 }}</span>
+    <div class="w-20 h-1.5 bg-gray-700 rounded-full overflow-hidden flex-none">
+      <div class="h-full rounded-full
+                  {% if color_class == 'blue' %}bg-blue-500{% elif color_class == 'green' %}bg-green-500{% else %}bg-orange-500{% endif %}"
+           style="width: {{ dp.pct if dp else 0 }}%"></div>
+    </div>
+    <svg id="day-chevron-{{ day_num }}" class="w-4 h-4 text-gray-500 transition-transform {{ 'rotate-180' if loop.index == 1 }}"
+         fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+  </button>
+
+  <!-- Activities list -->
+  <div id="day-body-{{ day_num }}" class="{{ 'hidden' if loop.index != 1 }} border-t border-gray-800">
+    {% if day_acts %}
+    <!-- Group by time of day -->
+    {% set ns = namespace(last_tod='') %}
+    {% for act in day_acts %}
+      {% if act.time_of_day != ns.last_tod %}
+        {% set ns.last_tod = act.time_of_day %}
+        <div class="px-5 py-2 bg-gray-900 border-b border-gray-800">
+          <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            {{ act.time_meta.short }}
+          </span>
+        </div>
+      {% endif %}
+      <div class="flex items-center gap-3 px-5 py-3 hover:bg-gray-800 transition border-b border-gray-800 last:border-0 activity-row"
+           data-activity-id="{{ act.id }}" id="act-row-{{ act.id }}">
+        <!-- Checkbox -->
+        <button onclick="toggleActivity({{ act.id }}, this)"
+                class="w-6 h-6 rounded-full border-2 flex-none flex items-center justify-center transition
+                       {% if act.completed %}bg-emerald-600 border-emerald-600 text-white{% else %}border-gray-600 hover:border-emerald-500{% endif %}"
+                title="{{ 'Đánh dấu chưa làm' if act.completed else 'Đánh dấu đã hoàn thành' }}">
+          {% if act.completed %}<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>{% endif %}
+        </button>
+
+        <!-- Icon + Label -->
+        <span class="text-base flex-none">{{ act.meta.icon }}</span>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm text-gray-200 {{ 'line-through text-gray-500' if act.completed }}">
+            {{ act.meta.vi }}
+          </p>
+          {% if act.chunk_label %}
+          <p class="text-xs text-indigo-400 mt-0.5">
+            {{ act.chunk_label }}
+            {% if act.speed and act.speed != 1.0 %} · {{ act.speed }}×{% endif %}
+          </p>
+          {% endif %}
+        </div>
+
+        <!-- Duration badge -->
+        <span class="text-xs text-gray-500 flex-none">~{{ act.duration_minutes }}p</span>
+
+        <!-- Recording button for free_recall / record_evaluate -->
+        {% if act.activity_type in ('free_recall', 'free_recall_b', 'record_evaluate', 'free_speech') %}
+        <button onclick="openRecorder({{ video.id }}, {{ act.id }}, '{{ act.activity_type }}')"
+                class="text-xs bg-rose-900 hover:bg-rose-800 border border-rose-700 text-rose-300 px-2 py-1 rounded-lg transition flex-none"
+                title="Ghi âm">🎙</button>
+        {% endif %}
+
+        <!-- Jump to chunk in player -->
+        {% if act.chunk_start is not none %}
+        <a href="{{ url_for('player', video_db_id=video.id) }}#t={{ act.chunk_start | int }}"
+           class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1 rounded-lg transition flex-none"
+           title="Mở player tại chunk này">▶</a>
+        {% endif %}
+      </div>
+    {% endfor %}
+    {% else %}
+    <p class="text-sm text-gray-500 text-center py-6">Chưa có hoạt động.</p>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+<!-- Comprehension tracker -->
+{% if cycle and cycle.status in ('day1', 'day2', 'day3', 'completed') %}
+<div class="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
+  <h3 class="text-sm font-semibold text-gray-200 mb-4">📊 Đánh giá mức độ hiểu</h3>
+  <div class="flex gap-6 flex-wrap">
+    <div class="flex-1 min-w-[180px]">
+      <label class="text-xs text-gray-400 mb-2 block">Ngày 1 – Ước tính ban đầu</label>
+      <div class="flex items-center gap-3">
+        <input type="range" min="0" max="100" step="5"
+               value="{{ cycle.comprehension_day1 or 0 }}"
+               oninput="updateComprehensionDisplay(1, this.value)"
+               onchange="saveComprehension(1, this.value)"
+               class="flex-1 accent-blue-500" />
+        <span id="comp-display-1" class="text-sm font-bold text-blue-400 w-10 text-right">{{ cycle.comprehension_day1 or 0 }}%</span>
+      </div>
+    </div>
+    <div class="flex-1 min-w-[180px]">
+      <label class="text-xs text-gray-400 mb-2 block">Ngày 3 – Sau khi hoàn thành</label>
+      <div class="flex items-center gap-3">
+        <input type="range" min="0" max="100" step="5"
+               value="{{ cycle.comprehension_day3 or 0 }}"
+               oninput="updateComprehensionDisplay(3, this.value)"
+               onchange="saveComprehension(3, this.value)"
+               class="flex-1 accent-orange-500" />
+        <span id="comp-display-3" class="text-sm font-bold text-orange-400 w-10 text-right">{{ cycle.comprehension_day3 or 0 }}%</span>
+      </div>
+    </div>
+  </div>
+  {% if cycle.comprehension_day1 and cycle.comprehension_day3 %}
+    {% set improvement = cycle.comprehension_day3 - cycle.comprehension_day1 %}
+    <p class="text-xs text-gray-400 mt-3">
+      Tiến bộ: <span class="font-bold {{ 'text-emerald-400' if improvement >= 0 else 'text-red-400' }}">
+        {{ '+' if improvement >= 0 else '' }}{{ improvement }}%
+      </span>
+    </p>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Recordings section -->
+<div class="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
+  <div class="flex items-center justify-between mb-4">
+    <h3 class="text-sm font-semibold text-gray-200">🎙 Bản ghi âm</h3>
+    <button onclick="openRecorder({{ video.id }}, null, 'free_recall')"
+            class="text-xs bg-rose-900 hover:bg-rose-800 border border-rose-700 text-rose-300 px-3 py-1.5 rounded-lg transition">
+      ＋ Ghi âm mới
+    </button>
+  </div>
+  <div id="recordings-list">
+    {% if recordings %}
+    {% for rec in recordings %}
+    <div class="flex items-center gap-3 py-2 border-b border-gray-800 last:border-0" id="rec-row-{{ rec.id }}">
+      <span class="text-base flex-none">🎙</span>
+      <div class="flex-1 min-w-0">
+        <p class="text-xs text-gray-300 font-medium truncate">
+          {{ rec.activity_type.replace('_', ' ').title() }}
+          <span class="text-gray-500 ml-2">{{ rec.recorded_at[:10] }}</span>
+        </p>
+        {% if rec.duration_seconds %}
+        <span class="text-xs text-gray-500">{{ rec.duration_seconds }}s</span>
+        {% endif %}
+        {% if rec.self_notes %}
+        <p class="text-xs text-yellow-400/80 mt-0.5 truncate">📝 {{ rec.self_notes }}</p>
+        {% endif %}
+      </div>
+      <audio controls src="{{ url_for('static', filename='recordings/' + rec.filename) }}"
+             class="h-8 flex-none max-w-[160px]"></audio>
+      <button onclick="deleteRecording({{ rec.id }})"
+              class="text-gray-600 hover:text-red-400 transition flex-none text-sm px-1">✕</button>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="text-sm text-gray-500 text-center py-6">Chưa có bản ghi âm nào. Hãy thực hành free recall và ghi lại!</p>
+    {% endif %}
+  </div>
+</div>
+
+{% endif %}{# end if cycle #}
+
+<!-- ── Focus Expression Editor Modal ──────────────────────────────────── -->
+<div id="expr-modal" class="hidden fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+     onclick="if(event.target===this)closeExprModal()">
+  <div class="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
+    <div class="px-5 pt-5 pb-3 border-b border-gray-800 flex items-center justify-between">
+      <h3 class="text-sm font-semibold text-gray-100">🖊 Focus Expressions</h3>
+      <button onclick="closeExprModal()" class="text-gray-400 hover:text-gray-200 text-xl">✕</button>
+    </div>
+    <div class="p-5">
+      <p class="text-xs text-gray-400 mb-3">Gạch chân tối đa 10-15 expressions/phrases quan trọng từ chunk này:</p>
+      <div id="expr-tags" class="flex flex-wrap gap-2 mb-3 min-h-[40px]"></div>
+      <div class="flex gap-2">
+        <input id="expr-input" type="text" placeholder="Thêm expression..." maxlength="50"
+               class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100
+                      focus:outline-none focus:border-indigo-500"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();addExpr()}" />
+        <button onclick="addExpr()"
+                class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-4 py-2 rounded-lg transition">＋</button>
+      </div>
+    </div>
+    <div class="px-5 pb-4 flex gap-2 justify-end">
+      <button onclick="closeExprModal()" class="text-xs text-gray-400 hover:text-gray-200 px-4 py-2 rounded-lg transition">Hủy</button>
+      <button onclick="saveExpressions()"
+              class="bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold px-5 py-2 rounded-lg transition">
+        💾 Lưu
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Audio Recorder Modal ────────────────────────────────────────────── -->
+<div id="recorder-modal" class="hidden fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+     onclick="if(event.target===this)closeRecorderModal()">
+  <div class="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-sm" onclick="event.stopPropagation()">
+    <div class="px-5 pt-5 pb-3 border-b border-gray-800 flex items-center justify-between">
+      <h3 class="text-sm font-semibold text-gray-100">🎙 Ghi âm</h3>
+      <button onclick="closeRecorderModal()" class="text-gray-400 hover:text-gray-200 text-xl">✕</button>
+    </div>
+    <div class="p-5 space-y-4">
+      <p id="recorder-label" class="text-xs text-gray-400"></p>
+      <!-- Timer -->
+      <div class="text-center">
+        <span id="rec-timer" class="text-4xl font-mono font-bold text-red-400">0:00</span>
+      </div>
+      <!-- Waveform indicator -->
+      <div id="rec-waveform" class="flex items-center justify-center gap-1 h-8 hidden">
+        {% for i in range(12) %}
+        <div class="w-1 bg-red-500 rounded-full animate-pulse" style="height: {{ (loop.index * 7 % 24 + 8) }}px; animation-delay: {{ loop.index * 0.08 }}s"></div>
+        {% endfor %}
+      </div>
+      <!-- Controls -->
+      <div class="flex gap-2 justify-center">
+        <button id="rec-start-btn" onclick="startRecording()"
+                class="bg-red-700 hover:bg-red-600 text-white font-semibold px-5 py-2.5 rounded-xl transition">
+          🔴 Bắt đầu
+        </button>
+        <button id="rec-stop-btn" onclick="stopRecording()" disabled
+                class="bg-gray-700 text-gray-400 font-semibold px-5 py-2.5 rounded-xl transition disabled:opacity-50">
+          ⏹ Dừng
+        </button>
+      </div>
+      <!-- Playback (shown after recording) -->
+      <div id="rec-playback" class="hidden space-y-3">
+        <audio id="rec-audio" controls class="w-full"></audio>
+        <textarea id="rec-notes" rows="2" placeholder="Ghi chú tự đánh giá (tùy chọn)…"
+                  class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100
+                         focus:outline-none focus:border-indigo-500 resize-none placeholder-gray-500"></textarea>
+        <button onclick="saveRecording()"
+                class="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-semibold py-2.5 rounded-xl transition">
+          💾 Lưu bản ghi
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='cycle.js') }}"></script>
+{% endblock %}

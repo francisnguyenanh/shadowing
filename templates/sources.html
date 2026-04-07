@@ -1,0 +1,284 @@
+{% extends 'base.html' %}
+{% block title %}Nguồn học theo trình độ — Tomo Shadow App{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+
+  <!-- Header -->
+  <div class="mb-6 flex items-center justify-between flex-wrap gap-3">
+    <div>
+      <h1 class="text-xl font-bold text-gray-100">📚 Nguồn học YouTube theo trình độ</h1>
+      <p class="text-sm text-gray-400 mt-1">Quản lý danh sách kênh luyện shadowing theo giai đoạn N2 → N1</p>
+    </div>
+    <button onclick="openAddModal()"
+            class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">
+      ＋ Thêm nguồn
+    </button>
+  </div>
+
+  <!-- ── N2 Phase ─────────────────────────────────────────────────────────── -->
+  <div class="mb-8">
+    <div class="flex items-center gap-3 mb-3">
+      <h2 class="text-base font-bold text-blue-300">📺 Giai đoạn N2 – Nền tảng</h2>
+      <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">1 speaker rõ, tốc độ vừa</span>
+    </div>
+    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-800 text-xs text-gray-500 uppercase tracking-wider">
+            <th class="text-left px-4 py-3 font-semibold">Kênh</th>
+            <th class="text-left px-4 py-3 font-semibold hidden sm:table-cell">Link</th>
+            <th class="text-left px-4 py-3 font-semibold hidden md:table-cell">Chủ đề</th>
+            <th class="text-left px-4 py-3 font-semibold hidden lg:table-cell">Phù hợp</th>
+            <th class="px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody-N2">
+          {% for src in sources_n2 %}
+          {{ _source_row(src) }}
+          {% else %}
+          <tr><td colspan="5" class="text-center text-gray-500 text-xs py-6">Chưa có nguồn N2.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <button onclick="openAddModal('N2')"
+            class="mt-2 text-xs text-gray-500 hover:text-indigo-400 transition">＋ Thêm kênh N2</button>
+  </div>
+
+  <!-- ── N1 Phase ─────────────────────────────────────────────────────────── -->
+  <div class="mb-8">
+    <div class="flex items-center gap-3 mb-3">
+      <h2 class="text-base font-bold text-orange-300">📺 Giai đoạn N1 – Nội dung thật</h2>
+      <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">Không phải "dạy tiếng Nhật"</span>
+    </div>
+    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-800 text-xs text-gray-500 uppercase tracking-wider">
+            <th class="text-left px-4 py-3 font-semibold">Kênh</th>
+            <th class="text-left px-4 py-3 font-semibold hidden sm:table-cell">Link</th>
+            <th class="text-left px-4 py-3 font-semibold hidden md:table-cell">Chủ đề</th>
+            <th class="text-left px-4 py-3 font-semibold hidden lg:table-cell">Phù hợp</th>
+            <th class="px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody-N1">
+          {% for src in sources_n1 %}
+          {{ _source_row(src) }}
+          {% else %}
+          <tr><td colspan="5" class="text-center text-gray-500 text-xs py-6">Chưa có nguồn N1.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <button onclick="openAddModal('N1')"
+            class="mt-2 text-xs text-gray-500 hover:text-orange-400 transition">＋ Thêm kênh N1</button>
+  </div>
+
+</div>
+
+<!-- ── Macro: source table row ───────────────────────────────────────────── -->
+{% macro _source_row(src) %}
+<tr class="border-b border-gray-800 last:border-0 hover:bg-gray-800/50 transition" id="src-row-{{ src.id }}">
+  <td class="px-4 py-3">
+    <div class="font-semibold text-gray-100">{{ src.channel_name }}</div>
+    {% if src.reason %}
+    <details class="mt-1">
+      <summary class="text-xs text-gray-500 cursor-pointer hover:text-gray-300 select-none">💡 Lý do dùng shadowing</summary>
+      <p class="text-xs text-gray-400 mt-1 leading-relaxed">{{ src.reason }}</p>
+    </details>
+    {% endif %}
+  </td>
+  <td class="px-4 py-3 hidden sm:table-cell">
+    {% if src.link %}
+    <a href="{{ 'https://' + src.link if not src.link.startswith('http') else src.link }}"
+       target="_blank" rel="noopener noreferrer"
+       class="text-indigo-400 hover:text-indigo-300 text-xs break-all transition">
+      {{ src.link }}
+    </a>
+    {% else %}
+    <span class="text-gray-600 text-xs">—</span>
+    {% endif %}
+  </td>
+  <td class="px-4 py-3 hidden md:table-cell">
+    <span class="text-xs text-gray-300">{{ src.topic or '—' }}</span>
+  </td>
+  <td class="px-4 py-3 hidden lg:table-cell">
+    {% if src.level %}
+    <span class="text-xs bg-gray-800 border border-gray-700 text-gray-300 px-2 py-0.5 rounded-full">{{ src.level }}</span>
+    {% else %}
+    <span class="text-gray-600 text-xs">—</span>
+    {% endif %}
+  </td>
+  <td class="px-4 py-3 text-right">
+    <div class="flex gap-1 justify-end">
+      <button onclick="openEditModal({{ src | tojson | e }})"
+              class="text-xs text-gray-400 hover:text-indigo-300 px-2 py-1 rounded transition border border-transparent hover:border-gray-600"
+              title="Sửa">✏️</button>
+      <button onclick="deleteSource({{ src.id }}, '{{ src.channel_name | e }}')"
+              class="text-xs text-gray-400 hover:text-red-400 px-2 py-1 rounded transition border border-transparent hover:border-gray-600"
+              title="Xóa">✕</button>
+    </div>
+  </td>
+</tr>
+{% endmacro %}
+
+<!-- ── Add / Edit Modal ─────────────────────────────────────────────────── -->
+<div id="src-modal" class="hidden fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+     onclick="if(event.target===this)closeSrcModal()">
+  <div class="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-lg" onclick="event.stopPropagation()">
+    <div class="px-5 pt-5 pb-3 border-b border-gray-800 flex items-center justify-between">
+      <h3 id="src-modal-title" class="text-sm font-semibold text-gray-100">＋ Thêm nguồn học</h3>
+      <button onclick="closeSrcModal()" class="text-gray-400 hover:text-gray-200 text-xl px-2">✕</button>
+    </div>
+    <form onsubmit="saveSrcModal(event)" class="p-5 space-y-4">
+      <input type="hidden" id="src-id" value="" />
+
+      <div class="flex gap-3">
+        <div class="flex-1">
+          <label class="text-xs text-gray-400 mb-1 block">Giai đoạn *</label>
+          <select id="src-phase"
+                  class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100
+                         focus:outline-none focus:border-indigo-500">
+            <option value="N2">N2 – Nền tảng</option>
+            <option value="N1">N1 – Nội dung thật</option>
+          </select>
+        </div>
+        <div class="flex-1">
+          <label class="text-xs text-gray-400 mb-1 block">Phù hợp trình độ</label>
+          <input id="src-level" type="text" placeholder="vd: N2-N1, N1 - IT" maxlength="30"
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100
+                        focus:outline-none focus:border-indigo-500 placeholder-gray-600" />
+        </div>
+      </div>
+
+      <div>
+        <label class="text-xs text-gray-400 mb-1 block">Tên kênh *</label>
+        <input id="src-name" type="text" placeholder="vd: あかね的日本語教室" maxlength="100" required
+               class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100
+                      focus:outline-none focus:border-indigo-500 placeholder-gray-600" />
+      </div>
+
+      <div>
+        <label class="text-xs text-gray-400 mb-1 block">Link / URL</label>
+        <input id="src-link" type="text" placeholder="youtube.com/@channel" maxlength="200"
+               class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100
+                      focus:outline-none focus:border-indigo-500 placeholder-gray-600" />
+      </div>
+
+      <div>
+        <label class="text-xs text-gray-400 mb-1 block">Chủ đề</label>
+        <input id="src-topic" type="text" placeholder="vd: Văn hóa, đời sống, hội thoại" maxlength="150"
+               class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100
+                      focus:outline-none focus:border-indigo-500 placeholder-gray-600" />
+      </div>
+
+      <div>
+        <label class="text-xs text-gray-400 mb-1 block">Lý do dùng để Shadowing</label>
+        <textarea id="src-reason" rows="3" maxlength="500"
+                  placeholder="Tại sao kênh này phù hợp để luyện shadowing?"
+                  class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100
+                         focus:outline-none focus:border-indigo-500 placeholder-gray-600 resize-none"></textarea>
+      </div>
+
+      <div class="flex gap-2 justify-end pt-1">
+        <button type="button" onclick="closeSrcModal()"
+                class="text-xs text-gray-400 hover:text-gray-200 px-4 py-2 rounded-lg transition">Hủy</button>
+        <button type="submit"
+                class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-6 py-2 rounded-lg transition">
+          💾 Lưu
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openAddModal(phase) {
+  document.getElementById('src-modal-title').textContent = '＋ Thêm nguồn học';
+  document.getElementById('src-id').value = '';
+  document.getElementById('src-phase').value = phase || 'N2';
+  document.getElementById('src-name').value = '';
+  document.getElementById('src-link').value = '';
+  document.getElementById('src-topic').value = '';
+  document.getElementById('src-level').value = '';
+  document.getElementById('src-reason').value = '';
+  document.getElementById('src-modal').classList.remove('hidden');
+  document.getElementById('src-name').focus();
+}
+
+function openEditModal(src) {
+  document.getElementById('src-modal-title').textContent = '✏️ Sửa nguồn học';
+  document.getElementById('src-id').value = src.id;
+  document.getElementById('src-phase').value = src.phase || 'N2';
+  document.getElementById('src-name').value = src.channel_name || '';
+  document.getElementById('src-link').value = src.link || '';
+  document.getElementById('src-topic').value = src.topic || '';
+  document.getElementById('src-level').value = src.level || '';
+  document.getElementById('src-reason').value = src.reason || '';
+  document.getElementById('src-modal').classList.remove('hidden');
+}
+
+function closeSrcModal() {
+  document.getElementById('src-modal').classList.add('hidden');
+}
+
+async function saveSrcModal(e) {
+  e.preventDefault();
+  const id = document.getElementById('src-id').value;
+  const payload = {
+    phase: document.getElementById('src-phase').value,
+    channel_name: document.getElementById('src-name').value.trim(),
+    link: document.getElementById('src-link').value.trim(),
+    topic: document.getElementById('src-topic').value.trim(),
+    level: document.getElementById('src-level').value.trim(),
+    reason: document.getElementById('src-reason').value.trim(),
+  };
+  if (!payload.channel_name) { alert('Vui lòng nhập tên kênh.'); return; }
+
+  const btn = e.target.querySelector('[type="submit"]');
+  btn.disabled = true; btn.textContent = '⏳…';
+
+  try {
+    const url = id ? `/api/source/${id}` : '/api/source';
+    const method = id ? 'PATCH' : 'POST';
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.success) {
+      closeSrcModal();
+      window.location.reload();
+    } else {
+      alert('Lỗi: ' + (data.error || 'Không xác định'));
+      btn.disabled = false; btn.textContent = '💾 Lưu';
+    }
+  } catch (err) {
+    alert('Lỗi kết nối: ' + err.message);
+    btn.disabled = false; btn.textContent = '💾 Lưu';
+  }
+}
+
+async function deleteSource(id, name) {
+  if (!confirm(`Xóa nguồn "${name}"?`)) return;
+  try {
+    const res = await fetch(`/api/source/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+      const row = document.getElementById(`src-row-${id}`);
+      if (row) { row.style.opacity = '0'; setTimeout(() => row.remove(), 300); }
+    } else {
+      alert('Lỗi: ' + data.error);
+    }
+  } catch (err) {
+    alert('Lỗi: ' + err.message);
+  }
+}
+</script>
+{% endblock %}

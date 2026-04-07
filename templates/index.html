@@ -120,6 +120,9 @@
                  class="flex-1 text-center bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-2 rounded-lg transition">
                 ▶ Luyện tập
               </a>
+              <a href="{{ url_for('cycle_dashboard', video_db_id=video.id) }}"
+                 class="text-center bg-purple-800 hover:bg-purple-700 text-purple-200 text-xs font-semibold py-2 px-3 rounded-lg transition"
+                 title="Chu kỳ 3 ngày">🔄</a>
               <a href="{{ url_for('show_prompt', video_db_id=video.id) }}"
                  class="text-center bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-semibold py-2 px-3 rounded-lg transition"
                  title="Thêm / cập nhật transcript">📋</a>

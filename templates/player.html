@@ -111,52 +111,70 @@
   <div id="main-layout" class="flex flex-1 overflow-hidden flex-col lg:flex-row">
 
     <!-- LEFT: Video panel -->
-    <div id="left-panel" class="h-1/2 lg:h-auto lg:w-3/5 flex flex-col bg-gray-900 border-r border-gray-800 overflow-y-auto lg:overflow-hidden" style="min-width:200px;">
+    <div id="left-panel" class="flex-none lg:h-auto lg:w-3/5 flex flex-col bg-gray-900 border-r border-gray-800 overflow-y-auto lg:overflow-hidden" style="min-width:200px;">
+
+      <!-- Mobile Video Toggle Header -->
+      <div class="lg:hidden flex justify-between items-center px-3 py-2 border-b border-gray-800 bg-gray-950">
+        <button onclick="toggleVideoCollapse()" id="video-toggle-btn" class="text-xs text-indigo-400 font-semibold flex items-center gap-1 bg-indigo-900/30 px-2 py-1 rounded">
+          ▼ Gấp gọn Video
+        </button>
+        <button id="mobile-loop-btn" onclick="toggleLoop()" class="text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded">
+          🔁 Loop OFF
+        </button>
+      </div>
 
       <!-- YouTube player container -->
-      <div class="w-full bg-black" style="aspect-ratio: 16/9;">
+      <div id="video-container" class="w-full bg-black transition-all duration-300 relative overflow-hidden" style="aspect-ratio: 16/9;">
         <div id="youtube-player" class="w-full h-full"></div>
       </div>
 
       <!-- Controls -->
       <div class="p-3 space-y-3 flex-shrink-0">
 
-        <!-- Speed buttons -->
-        <div class="flex items-center gap-2 flex-wrap">
-          <span class="text-xs text-gray-400 font-medium">Tốc độ:</span>
-          <button class="speed-btn text-xs px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
-                  data-speed="0.5" onclick="setSpeed(0.5)">0.5×</button>
-          <button class="speed-btn text-xs px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
-                  data-speed="0.75" onclick="setSpeed(0.75)">0.75×</button>
-          <button class="speed-btn text-xs px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition active"
-                  data-speed="1" onclick="setSpeed(1)">1×</button>
-          <button class="speed-btn text-xs px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
-                  data-speed="1.25" onclick="setSpeed(1.25)">1.25×</button>
-          <button class="speed-btn text-xs px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
-                  data-speed="1.5" onclick="setSpeed(1.5)">1.5×</button>
-          <button class="speed-btn text-xs px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
-                  data-speed="2" onclick="setSpeed(2)">2×</button>
-        </div>
-
         <!-- Playback controls -->
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 mb-2 lg:mb-0">
           <button onclick="seekRelative(-5)"
-                  class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-sm px-3 py-2 rounded-lg transition">
+                  class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-sm px-3 py-3 lg:py-2 rounded-lg transition flex-1 lg:flex-none">
             ⏮ -5s
           </button>
           <button id="play-pause-btn" onclick="togglePlayPause()"
-                  class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm px-6 py-2 rounded-lg transition flex-1 lg:flex-none">
+                  class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-lg lg:text-sm px-8 py-3 lg:py-2 rounded-lg transition flex-shrink-0 lg:flex-none">
             ▶ / ⏸
           </button>
           <button onclick="seekRelative(5)"
-                  class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-sm px-3 py-2 rounded-lg transition">
+                  class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-sm px-3 py-3 lg:py-2 rounded-lg transition flex-1 lg:flex-none">
             +5s ⏭
           </button>
+          
           <button id="loop-btn" onclick="toggleLoop()"
-                  class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-xs px-3 py-2 rounded-lg transition ml-auto">
+                  class="hidden lg:block bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-xs px-3 py-2 rounded-lg transition ml-auto">
             🔁 Loop OFF
           </button>
+          
+          <!-- Mobile toggle for advanced controls -->
+          <button onclick="document.getElementById('advanced-controls').classList.toggle('hidden')"
+                  class="lg:hidden ml-auto flex-shrink-0 text-xs bg-gray-700 hover:bg-gray-600 border border-gray-600 text-gray-200 px-3 py-3 rounded-lg font-semibold">
+            ⚙️ Tùy chỉnh
+          </button>
         </div>
+
+        <div id="advanced-controls" class="hidden lg:block space-y-3">
+          <!-- Speed buttons -->
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs text-gray-400 font-medium w-full sm:w-auto">Tốc độ:</span>
+            <button class="speed-btn text-xs px-3 py-2 lg:py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
+                    data-speed="0.5" onclick="setSpeed(0.5)">0.5×</button>
+            <button class="speed-btn text-xs px-3 py-2 lg:py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
+                    data-speed="0.75" onclick="setSpeed(0.75)">0.75×</button>
+            <button class="speed-btn text-xs px-3 py-2 lg:py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition active"
+                    data-speed="1" onclick="setSpeed(1)">1×</button>
+            <button class="speed-btn text-xs px-3 py-2 lg:py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
+                    data-speed="1.25" onclick="setSpeed(1.25)">1.25×</button>
+            <button class="speed-btn text-xs px-3 py-2 lg:py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
+                    data-speed="1.5" onclick="setSpeed(1.5)">1.5×</button>
+            <button class="speed-btn text-xs px-3 py-2 lg:py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
+                    data-speed="2" onclick="setSpeed(2)">2×</button>
+          </div>
 
         <!-- Loop A-B controls (hidden by default) -->
         <div id="loop-ab-controls" class="items-center gap-2 flex-wrap" style="display:none">
@@ -217,25 +235,26 @@
           </label>
         </div>
 
-        <!-- Timeline offset -->
-        <div class="border-t border-gray-800 pt-2 flex items-center gap-2 flex-wrap">
-          <span class="text-xs text-gray-400 font-medium">⏱ Timeline offset:</span>
-          <button onclick="adjustOffset(-1)"
-                  class="bg-gray-800 hover:bg-red-900 border border-gray-700 text-gray-400 text-xs px-2 py-1 rounded transition">−1s</button>
-          <button onclick="adjustOffset(-0.5)"
-                  class="bg-gray-800 hover:bg-red-900 border border-gray-700 text-gray-400 text-xs px-2 py-1 rounded transition">−0.5s</button>
-          <span id="offset-display"
-                class="text-xs font-mono font-bold text-yellow-400 bg-gray-800 border border-gray-700 px-2 py-1 rounded min-w-[52px] text-center">
-            ±0.0s
-          </span>
-          <button onclick="adjustOffset(0.5)"
-                  class="bg-gray-800 hover:bg-green-900 border border-gray-700 text-gray-400 text-xs px-2 py-1 rounded transition">+0.5s</button>
-          <button onclick="adjustOffset(1)"
-                  class="bg-gray-800 hover:bg-green-900 border border-gray-700 text-gray-400 text-xs px-2 py-1 rounded transition">+1s</button>
-          <button onclick="saveOffset()"
-                  class="bg-indigo-700 hover:bg-indigo-600 border border-indigo-600 text-white text-xs px-3 py-1 rounded transition ml-auto">💾 Lưu</button>
-          <button onclick="resetOffset()"
-                  class="bg-gray-700 hover:bg-gray-600 border border-gray-600 text-gray-400 text-xs px-2 py-1 rounded transition">↺</button>
+          <!-- Timeline offset -->
+          <div class="border-t border-gray-800 pt-2 flex items-center gap-2 flex-wrap">
+            <span class="text-xs text-gray-400 font-medium">⏱ Timeline offset:</span>
+            <button onclick="adjustOffset(-1)"
+                    class="bg-gray-800 hover:bg-red-900 border border-gray-700 text-gray-400 text-xs px-2 py-1 rounded transition">−1s</button>
+            <button onclick="adjustOffset(-0.5)"
+                    class="bg-gray-800 hover:bg-red-900 border border-gray-700 text-gray-400 text-xs px-2 py-1 rounded transition">−0.5s</button>
+            <span id="offset-display"
+                  class="text-xs font-mono font-bold text-yellow-400 bg-gray-800 border border-gray-700 px-2 py-1 rounded min-w-[52px] text-center">
+              ±0.0s
+            </span>
+            <button onclick="adjustOffset(0.5)"
+                    class="bg-gray-800 hover:bg-green-900 border border-gray-700 text-gray-400 text-xs px-2 py-1 rounded transition">+0.5s</button>
+            <button onclick="adjustOffset(1)"
+                    class="bg-gray-800 hover:bg-green-900 border border-gray-700 text-gray-400 text-xs px-2 py-1 rounded transition">+1s</button>
+            <button onclick="saveOffset()"
+                    class="bg-indigo-700 hover:bg-indigo-600 border border-indigo-600 text-white text-xs px-3 py-1 rounded transition ml-auto">💾 Lưu</button>
+            <button onclick="resetOffset()"
+                    class="bg-gray-700 hover:bg-gray-600 border border-gray-600 text-gray-400 text-xs px-2 py-1 rounded transition">↺</button>
+          </div>
         </div>
 
       </div>
@@ -444,5 +463,36 @@
 </div>
 
 <script src="{{ url_for('static', filename='player.js') }}"></script>
+<script>
+  function toggleVideoCollapse() {
+    const vc = document.getElementById('video-container');
+    const btn = document.getElementById('video-toggle-btn');
+    if (vc.style.height === '1px') {
+      vc.style.height = ''; 
+      vc.style.aspectRatio = '16/9';
+      vc.style.opacity = '1';
+      btn.innerHTML = '▼ Gấp gọn Video';
+    } else {
+      vc.style.aspectRatio = 'auto';
+      vc.style.height = '1px';
+      vc.style.opacity = '0.01'; // trick to keep it rendering for youtube but invisible
+      btn.innerHTML = '▶ Hiện Video';
+    }
+  }
+
+  // Bind the mobile loop button so it stays in sync
+  const originalToggleLoop = window.toggleLoop;
+  window.toggleLoop = function() {
+    if (originalToggleLoop) originalToggleLoop();
+    // After execution, sync the mobile button text
+    const loopBtn = document.getElementById('loop-btn');
+    const mobileLoopBtn = document.getElementById('mobile-loop-btn');
+    if (loopBtn && mobileLoopBtn) {
+      mobileLoopBtn.innerHTML = loopBtn.innerHTML;
+      mobileLoopBtn.className = 'text-xs px-2 py-1 rounded ' + 
+        (loopBtn.classList.contains('bg-indigo-600') ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400');
+    }
+  }
+</script>
 </body>
 </html>

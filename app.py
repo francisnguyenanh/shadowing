@@ -64,42 +64,6 @@ def fetch_video_info(youtube_url: str) -> dict:
         return {'title': youtube_url, 'duration': 0}
 
 
-def download_audio_task(youtube_url: str, video_id: str) -> str:
-    """Download audio from YouTube as MP3 192kbps.
-
-    Output filename: static/audio/<Sanitized Title> [<video_id>].mp3
-    Returns the path relative to static/ (e.g. 'audio/Title_[ID].mp3') so it can
-    be stored in the DB and served via url_for('static', filename=...).
-    Raises on failure so the caller can flash the error.
-    """
-    import os
-    import yt_dlp
-
-    audio_dir = os.path.join(app.static_folder, 'audio')
-    os.makedirs(audio_dir, exist_ok=True)
-
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'quiet': True,
-        'no_warnings': True,
-        'outtmpl': os.path.join(audio_dir, '%(title)s [%(id)s].%(ext)s'),
-        'restrictfilenames': True,
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
-    }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(youtube_url, download=True)
-        # prepare_filename reflects the same sanitization as restrictfilenames;
-        # the postprocessor swaps the container ext to .mp3.
-        raw_path = ydl.prepare_filename(info)
-        mp3_path = os.path.splitext(raw_path)[0] + '.mp3'
-
-    # Return path relative to static/ for url_for('static', filename=...)
-    return 'audio/' + os.path.basename(mp3_path)
-
 
 def fetch_youtube_transcript(video_id: str, youtube_url: str, language: str) -> list | None:
     """Fetch transcript from YouTube. Try youtube-transcript-api first, then yt-dlp subtitles.
@@ -165,47 +129,18 @@ def fetch_youtube_transcript(video_id: str, youtube_url: str, language: str) -> 
 def index():
     try:
         db = get_db()
-        playlist_id = request.args.get('playlist', type=int)
-        playlists = db.execute(
-            '''SELECT p.*, COUNT(pv.id) as video_count
-               FROM playlists p
-               LEFT JOIN playlist_videos pv ON pv.playlist_id = p.id
-               GROUP BY p.id
-               ORDER BY p.name COLLATE NOCASE'''
+        videos = db.execute(
+            '''SELECT v.*, COUNT(s.id) as segment_count
+               FROM videos v
+               LEFT JOIN segments s ON s.video_id = v.id
+               GROUP BY v.id
+               ORDER BY v.created_at DESC'''
         ).fetchall()
-        if playlist_id:
-            current_playlist = db.execute(
-                'SELECT * FROM playlists WHERE id = ?', (playlist_id,)
-            ).fetchone()
-            if current_playlist is None:
-                return redirect(url_for('index'))
-            videos = db.execute(
-                '''SELECT v.*, COUNT(s.id) as segment_count
-                   FROM videos v
-                   JOIN playlist_videos pv ON pv.video_id = v.id
-                   LEFT JOIN segments s ON s.video_id = v.id
-                   WHERE pv.playlist_id = ?
-                   GROUP BY v.id
-                   ORDER BY pv.added_at DESC''',
-                (playlist_id,)
-            ).fetchall()
-        else:
-            current_playlist = None
-            videos = db.execute(
-                '''SELECT v.*, COUNT(s.id) as segment_count
-                   FROM videos v
-                   LEFT JOIN segments s ON s.video_id = v.id
-                   GROUP BY v.id
-                   ORDER BY v.created_at DESC'''
-            ).fetchall()
     except Exception as e:
         flash(f'Lỗi khi tải danh sách video: {str(e)}', 'error')
         videos = []
-        playlists = []
-        current_playlist = None
-        playlist_id = None
-    return render_template('index.html', videos=videos, playlists=playlists,
-                           current_playlist=current_playlist, playlist_id=playlist_id)
+    
+    return render_template('index.html', videos=videos)
 
 
 @app.route('/add', methods=['GET'])
@@ -251,16 +186,8 @@ def add_video():
                 flash(f'Đã import {len(transcript_data)} dòng từ file SRT.', 'success')
             except Exception as srt_err:
                 flash(f'Lỗi khi đọc file SRT: {str(srt_err)}', 'error')
-        # Download audio (MP3) — non-blocking on error
-        """
-        try:
-            audio_file = download_audio_task(youtube_url, video_id)
-            db.execute('UPDATE videos SET audio_path = ? WHERE id = ?', (audio_file, video_db_id))
-            db.commit()
-            flash('Video đã được thêm và audio đã tải xong!', 'success')
-        except Exception as dl_err:
-            flash('Video đã thêm nhưng tải audio thất bại: ' + str(dl_err), 'error')
-        """
+        # (Audio download has been removed)
+
         return redirect(url_for('show_prompt', video_db_id=video_db_id))
     except Exception as e:
         flash(f'Lỗi khi thêm video: {str(e)}', 'error')
@@ -573,130 +500,6 @@ def api_upload_srt(video_db_id):
     return redirect(url_for('show_prompt', video_db_id=video_db_id))
 
 
-@app.route('/api/transcript_file/<int:video_db_id>')
-def api_download_transcript_file(video_db_id):
-    """Download raw YouTube transcript as a Markdown file for attaching to external AI."""
-    try:
-        from flask import Response
-        db = get_db()
-        video = db.execute('SELECT * FROM videos WHERE id = ?', (video_db_id,)).fetchone()
-        if video is None:
-            return jsonify({'error': 'Không tìm thấy video.'}), 404
-        if not video['transcript_raw']:
-            return jsonify({'error': 'Video này không có transcript từ YouTube.'}), 404
-
-        transcript_data = json.loads(video['transcript_raw'])
-        lines = [
-            f'# Transcript: {video["title"] or video["video_id"]}',
-            f'URL: {video["youtube_url"]}',
-            f'Language: {video["language"]}',
-            '',
-            '## Segments',
-            '',
-        ]
-        for seg in transcript_data:
-            start = seg['start']
-            end = start + seg.get('duration', 2.0)
-            m_s, s_s = int(start // 60), int(start % 60)
-            m_e, s_e = int(end // 60), int(end % 60)
-            lines.append(f'[{m_s:02d}:{s_s:02d} → {m_e:02d}:{s_e:02d}] {seg["text"]}')
-
-        content = '\n'.join(lines)
-        title_safe = re.sub(r'[^\w\s-]', '', video['title'] or video['video_id'])[:50].strip()
-        filename = f'transcript_{title_safe}_{video["video_id"]}.md'
-        return Response(
-            content,
-            mimetype='text/markdown; charset=utf-8',
-            headers={'Content-Disposition': f'attachment; filename="{filename}"'}
-        )
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-# ── Playlist API ──────────────────────────────────────────────────────────────
-
-@app.route('/api/playlist', methods=['POST'])
-def api_create_playlist():
-    data = request.get_json(silent=True) or {}
-    name = (data.get('name') or '').strip()
-    if not name:
-        return jsonify({'success': False, 'error': 'Tên playlist không được để trống.'}), 400
-    try:
-        db = get_db()
-        cursor = db.execute('INSERT INTO playlists (name) VALUES (?)', (name,))
-        db.commit()
-        return jsonify({'success': True, 'id': cursor.lastrowid, 'name': name})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/playlist/<int:playlist_id>', methods=['DELETE'])
-def api_delete_playlist(playlist_id):
-    try:
-        db = get_db()
-        db.execute('DELETE FROM playlist_videos WHERE playlist_id = ?', (playlist_id,))
-        db.execute('DELETE FROM playlists WHERE id = ?', (playlist_id,))
-        db.commit()
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/playlist/<int:playlist_id>/video', methods=['POST'])
-def api_playlist_add_video(playlist_id):
-    data = request.get_json(silent=True) or {}
-    video_id = data.get('video_id')
-    if not video_id:
-        return jsonify({'success': False, 'error': 'Thiếu video_id.'}), 400
-    try:
-        db = get_db()
-        # Verify both records exist
-        if not db.execute('SELECT 1 FROM playlists WHERE id = ?', (playlist_id,)).fetchone():
-            return jsonify({'success': False, 'error': 'Playlist không tồn tại.'}), 404
-        if not db.execute('SELECT 1 FROM videos WHERE id = ?', (video_id,)).fetchone():
-            return jsonify({'success': False, 'error': 'Video không tồn tại.'}), 404
-        db.execute(
-            'INSERT OR IGNORE INTO playlist_videos (playlist_id, video_id) VALUES (?, ?)',
-            (playlist_id, video_id)
-        )
-        db.commit()
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/playlist/<int:playlist_id>/video/<int:video_id>', methods=['DELETE'])
-def api_playlist_remove_video(playlist_id, video_id):
-    try:
-        db = get_db()
-        db.execute(
-            'DELETE FROM playlist_videos WHERE playlist_id = ? AND video_id = ?',
-            (playlist_id, video_id)
-        )
-        db.commit()
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/video/<int:video_db_id>/playlists')
-def api_video_playlists(video_db_id):
-    try:
-        db = get_db()
-        all_playlists = db.execute(
-            'SELECT * FROM playlists ORDER BY name COLLATE NOCASE'
-        ).fetchall()
-        member_rows = db.execute(
-            'SELECT playlist_id FROM playlist_videos WHERE video_id = ?', (video_db_id,)
-        ).fetchall()
-        member_ids = {r['playlist_id'] for r in member_rows}
-        result = [
-            {'id': p['id'], 'name': p['name'], 'member': p['id'] in member_ids}
-            for p in all_playlists
-        ]
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/timeline_offset/<int:video_db_id>', methods=['POST'])
@@ -1296,86 +1099,6 @@ def api_cycle_by_id_comprehension(cycle_id):
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/cycle/<int:video_db_id>/start', methods=['POST'])
-def api_cycle_start(video_db_id):
-    """Legacy: split video + start all chunk cycles at once."""
-    try:
-        # Re-use split-chunks logic then start all cycles
-        from flask import current_app
-        with current_app.test_request_context():
-            pass  # just to validate context
-        db = get_db()
-        video = db.execute('SELECT * FROM videos WHERE id = ?', (video_db_id,)).fetchone()
-        if video is None:
-            return jsonify({'error': 'Video không tồn tại.'}), 404
-
-        # Delete old data
-        old_chunk_ids = [r['id'] for r in db.execute(
-            'SELECT id FROM chunks WHERE video_id = ?', (video_db_id,)
-        ).fetchall()]
-        if old_chunk_ids:
-            db.execute(
-                f'DELETE FROM learning_cycles WHERE chunk_id IN ({",".join("?" * len(old_chunk_ids))})',
-                old_chunk_ids
-            )
-            db.execute('DELETE FROM chunks WHERE video_id = ?', (video_db_id,))
-        db.execute('DELETE FROM learning_cycles WHERE video_id = ? AND chunk_id IS NULL', (video_db_id,))
-
-        segs = db.execute(
-            'SELECT start_time, end_time FROM segments WHERE video_id = ? ORDER BY segment_order',
-            (video_db_id,)
-        ).fetchall()
-        chunk_dicts = auto_split_chunks(video_db_id, [dict(s) for s in segs])
-        if not chunk_dicts and video['duration'] and video['duration'] > 0:
-            dur = video['duration']
-            target = 4 * 60
-            n = max(2, round(dur / target))
-            step = dur / n
-            labels = ['Chunk A', 'Chunk B', 'Chunk C', 'Chunk D', 'Chunk E',
-                      'Chunk F', 'Chunk G', 'Chunk H']
-            chunk_dicts = [
-                {'video_id': video_db_id, 'chunk_order': i,
-                 'label': labels[i] if i < len(labels) else f'Chunk {i + 1}',
-                 'start_time': round(i * step, 3),
-                 'end_time': round(min((i + 1) * step, dur), 3)}
-                for i in range(n)
-            ]
-        elif not chunk_dicts:
-            chunk_dicts = [
-                {'video_id': video_db_id, 'chunk_order': 0,
-                 'label': 'Chunk A', 'start_time': 0, 'end_time': 0}
-            ]
-
-        today = datetime.date.today().isoformat()
-        total_acts = 0
-        for c in chunk_dicts:
-            cur = db.execute(
-                'INSERT INTO chunks (video_id, chunk_order, label, start_time, end_time) VALUES (?, ?, ?, ?, ?)',
-                (c['video_id'], c['chunk_order'], c['label'], c['start_time'], c['end_time'])
-            )
-            chunk_db_id = cur.lastrowid
-            cyc = db.execute(
-                '''INSERT INTO learning_cycles (video_id, chunk_id, status, started_at)
-                   VALUES (?, ?, 'day1', ?)''',
-                (video_db_id, chunk_db_id, today)
-            )
-            cycle_id = cyc.lastrowid
-            acts = generate_per_chunk_schedule(cycle_id, chunk_db_id)
-            for act in acts:
-                db.execute(
-                    '''INSERT INTO session_activities
-                       (learning_cycle_id, activity_day, time_of_day, activity_type,
-                        chunk_id, speed, duration_minutes, activity_order)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-                    (act['learning_cycle_id'], act['activity_day'], act['time_of_day'],
-                     act['activity_type'], act['chunk_id'], act['speed'],
-                     act['duration_minutes'], act['activity_order'])
-                )
-                total_acts += 1
-        db.commit()
-        return jsonify({'success': True, 'chunks': len(chunk_dicts), 'activities': total_acts})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/cycle/<int:video_db_id>/status')
@@ -1407,51 +1130,6 @@ def api_cycle_status(video_db_id):
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/cycle/<int:video_db_id>/advance', methods=['POST'])
-def api_cycle_advance(video_db_id):
-    """Advance the first in-progress cycle for a video (legacy compat)."""
-    try:
-        db = get_db()
-        cycle = db.execute(
-            '''SELECT * FROM learning_cycles WHERE video_id = ? AND status IN ('day1','day2','day3')
-               ORDER BY id LIMIT 1''',
-            (video_db_id,)
-        ).fetchone()
-        if cycle is None:
-            return jsonify({'error': 'Không có cycle đang hoạt động.'}), 404
-        today = datetime.date.today().isoformat()
-        next_map = {'day1': ('day2', 'day2_started_at'), 'day2': ('day3', 'day3_started_at'),
-                    'day3': ('completed', 'completed_at')}
-        new_status, date_col = next_map[cycle['status']]
-        db.execute(
-            f'UPDATE learning_cycles SET status = ?, {date_col} = ? WHERE id = ?',
-            (new_status, today, cycle['id'])
-        )
-        db.commit()
-        return jsonify({'success': True, 'new_status': new_status})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/cycle/<int:video_db_id>/comprehension', methods=['POST'])
-def api_cycle_comprehension(video_db_id):
-    """Save comprehension % estimate (legacy – targets first cycle)."""
-    try:
-        data = request.get_json(silent=True) or {}
-        pct = int(data.get('pct', 0))
-        day = int(data.get('day', 1))
-        if not (0 <= pct <= 100) or day not in (1, 3):
-            return jsonify({'error': 'Tham số không hợp lệ.'}), 400
-        db = get_db()
-        col = f'comprehension_day{day}'
-        db.execute(
-            f'UPDATE learning_cycles SET {col} = ? WHERE video_id = ? ORDER BY id LIMIT 1',
-            (pct, video_db_id)
-        )
-        db.commit()
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 
 

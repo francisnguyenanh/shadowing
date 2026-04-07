@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="vi" class="h-full">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,7 +8,9 @@
   <!-- Google Fonts: Inter + Noto Sans Vietnamese -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <script>
@@ -23,10 +26,12 @@
     }
   </script>
 </head>
-<body class="bg-gray-950 text-gray-100 h-full overflow-hidden" style="font-family: Inter, 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
 
-<!-- Pass data to JS via script tag -->
-<script id="app-data" type="application/json">
+<body class="bg-gray-950 text-gray-100 h-full overflow-hidden"
+  style="font-family: Inter, 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+
+  <!-- Pass data to JS via script tag -->
+  <script id="app-data" type="application/json">
 {
   "videoId": {{ video.video_id | tojson }},
   "dbId": {{ video.id }},
@@ -34,490 +39,501 @@
 }
 </script>
 
-<div class="flex flex-col h-screen">
+  <div class="flex flex-col h-screen">
 
-  <!-- Top bar -->
-  <div class="bg-gray-900 border-b border-gray-800 px-3 md:px-4 py-2 flex flex-col md:flex-row md:items-center gap-2 md:gap-3 flex-shrink-0 relative z-40">
-    
-    <!-- Row 1 (Mobile) / Left side (Desktop): Back, Title, Language badge -->
-    <div class="flex items-center gap-2 flex-1 min-w-0">
-      <a href="{{ url_for('index') }}" class="text-gray-400 hover:text-gray-200 transition text-[13px] whitespace-nowrap flex-shrink-0">
-        <span class="md:hidden">← Trang chủ</span>
-        <span class="hidden md:inline">← Quay lại</span>
-      </a>
-      <span class="text-gray-700 hidden md:inline">|</span>
-      <h1 class="text-[13px] md:text-sm font-semibold text-gray-200 truncate flex-1">{{ video.title or video.youtube_url }}</h1>
-      {% if video.language == 'ja' %}
-        <span class="text-[10px] md:text-xs bg-red-900 text-red-300 border border-red-700 px-1.5 md:px-2 py-0.5 rounded-full flex-shrink-0">🇯🇵<span class="hidden md:inline"> 日本語</span></span>
-      {% else %}
-        <span class="text-[10px] md:text-xs bg-blue-900 text-blue-300 border border-blue-700 px-1.5 md:px-2 py-0.5 rounded-full flex-shrink-0">🇬🇧<span class="hidden md:inline"> English</span></span>
-      {% endif %}
-      
-      <!-- Hamburger Icon for Mobile Player -->
-      <button class="lg:hidden ml-auto text-gray-300 hover:text-white p-1 focus:outline-none" onclick="document.getElementById('player-mobile-menu').classList.toggle('hidden')">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-      </button>
-    </div>
+    <!-- Top bar -->
+    <div
+      class="bg-gray-900 border-b border-gray-800 px-3 md:px-4 py-2 flex flex-col md:flex-row md:items-center gap-2 md:gap-3 flex-shrink-0 relative z-40">
 
-    <!-- Row 2 (Mobile) / Right side (Desktop): Buttons & Goal -->
-    <div class="flex items-center gap-2 overflow-x-auto scrollbar-hide flex-shrink-0 pb-1 md:pb-0">
-      <a href="{{ url_for('cycle_dashboard', video_db_id=video.id) }}"
-         class="text-purple-400 hover:text-purple-300 text-[11px] md:text-xs px-2 py-1 rounded transition border border-gray-800 hover:border-purple-700 flex-shrink-0 whitespace-nowrap"
-         title="Chu kỳ 3 ngày">🔄 Chu kỳ</a>
-      <a href="{{ url_for('bookmarks_video', video_db_id=video.id) }}"
-         class="text-yellow-400 hover:text-yellow-300 text-[11px] md:text-xs px-2 py-1 rounded transition border border-gray-800 hover:border-yellow-700 flex-shrink-0 whitespace-nowrap"
-         title="Xem bookmarks video này">★ Bookmarks</a>
+      <!-- Row 1 (Mobile) / Left side (Desktop): Back, Title, Language badge -->
+      <div class="flex items-center gap-2 flex-1 min-w-0">
+        <a href="{{ url_for('index') }}"
+          class="text-gray-400 hover:text-gray-200 transition text-[13px] whitespace-nowrap flex-shrink-0">
+          <span class="md:hidden">← Trang chủ</span>
+          <span class="hidden md:inline">← Quay lại</span>
+        </a>
+        <span class="text-gray-700 hidden md:inline">|</span>
+        <h1 class="text-[13px] md:text-sm font-semibold text-gray-200 truncate flex-1">{{ video.title or
+          video.youtube_url }}</h1>
 
-      <!-- Daily Goal Widget -->
-      <div id="daily-goal-widget"
-           class="flex items-center gap-1.5 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 flex-shrink-0 cursor-pointer hover:border-indigo-500 transition whitespace-nowrap"
-           onclick="toggleGoalPanel()" title="Mục tiêu luyện hàng ngày">
-        <span class="text-[10px] md:text-xs text-gray-400">🎯</span>
-        <div class="w-12 md:w-20 h-1.5 bg-gray-700 rounded-full overflow-hidden">
-          <div id="goal-progress-bar" class="h-full bg-indigo-500 rounded-full transition-all" style="width:0%"></div>
-        </div>
-        <span id="goal-label" class="text-[10px] md:text-xs text-gray-400">0/15p</span>
+        <!-- Hamburger Icon for Mobile Player -->
+        <button class="lg:hidden ml-auto text-gray-300 hover:text-white p-1 focus:outline-none"
+          onclick="document.getElementById('player-mobile-menu').classList.toggle('hidden')">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+          </svg>
+        </button>
       </div>
-    </div>
 
-    <!-- Mobile Menu Dropdown -->
-    <div id="player-mobile-menu" class="hidden absolute top-full left-0 right-0 bg-gray-900 border-b border-gray-800 flex flex-col p-4 gap-3 lg:hidden shadow-2xl z-50">
-      <a href="{{ url_for('weekly_review') }}" class="text-emerald-400 hover:text-emerald-300 text-sm font-semibold inline-block">📈 Review</a>
-      <a href="{{ url_for('learning_path') }}" class="text-purple-400 hover:text-purple-300 text-sm font-semibold inline-block">🗺 Lộ trình</a>
-      <a href="{{ url_for('learning_sources') }}" class="text-cyan-400 hover:text-cyan-300 text-sm font-semibold inline-block">📚 Nguồn học</a>
-      <a href="{{ url_for('bookmarks_all') }}" class="text-yellow-400 hover:text-yellow-300 text-sm font-semibold inline-block">★ Bookmarks Tất cả</a>
-      <a href="{{ url_for('add_video_form') }}" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition text-center mt-2">＋ Thêm video</a>
-    </div>
+      <!-- Row 2 (Mobile) / Right side (Desktop): Buttons & Goal -->
+      <div class="flex items-center gap-2 overflow-x-auto scrollbar-hide flex-shrink-0 pb-1 md:pb-0">
+        <a href="{{ url_for('cycle_dashboard', video_db_id=video.id) }}"
+          class="text-purple-400 hover:text-purple-300 text-[11px] md:text-xs px-2 py-1 rounded transition border border-gray-800 hover:border-purple-700 flex-shrink-0 whitespace-nowrap"
+          title="Chu kỳ 3 ngày">🔄 Chu kỳ</a>
+        <a href="{{ url_for('bookmarks_video', video_db_id=video.id) }}"
+          class="text-yellow-400 hover:text-yellow-300 text-[11px] md:text-xs px-2 py-1 rounded transition border border-gray-800 hover:border-yellow-700 flex-shrink-0 whitespace-nowrap"
+          title="Xem bookmarks video này">★ Bookmarks</a>
 
-    <!-- Goal settings panel (hidden) -->
-    <div id="goal-panel"
-         class="hidden absolute top-12 right-4 z-50 bg-gray-900 border border-gray-700 rounded-xl p-4 shadow-xl w-64 space-y-3">
-      <div class="flex items-center justify-between">
-        <span class="text-sm font-semibold text-gray-100">🎯 Mục tiêu hàng ngày</span>
-        <button onclick="toggleGoalPanel()" class="text-gray-500 hover:text-gray-300 text-xs">✕</button>
-      </div>
-      <div>
-        <p class="text-xs text-gray-400 mb-2">Thời gian đã luyện hôm nay:</p>
-        <div class="flex items-end gap-2 mb-2">
-          <span id="goal-today-display" class="text-2xl font-bold text-indigo-400">0:00</span>
-          <span class="text-xs text-gray-500 mb-1">/ <span id="goal-target-display">15</span> phút</span>
+        <!-- Daily Goal Widget -->
+        <div id="daily-goal-widget"
+          class="flex items-center gap-1.5 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 flex-shrink-0 cursor-pointer hover:border-indigo-500 transition whitespace-nowrap"
+          onclick="toggleGoalPanel()" title="Mục tiêu luyện hàng ngày">
+          <span class="text-[10px] md:text-xs text-gray-400">🎯</span>
+          <div class="w-12 md:w-20 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+            <div id="goal-progress-bar" class="h-full bg-indigo-500 rounded-full transition-all" style="width:0%"></div>
+          </div>
+          <span id="goal-label" class="text-[10px] md:text-xs text-gray-400">0/15p</span>
         </div>
-        <div class="w-full h-2 bg-gray-700 rounded-full overflow-hidden mb-1">
-          <div id="goal-progress-bar-panel" class="h-full bg-indigo-500 rounded-full transition-all" style="width:0%"></div>
-        </div>
-        <p id="goal-status-text" class="text-xs text-gray-500"></p>
       </div>
-      <div class="border-t border-gray-800 pt-3">
-        <p class="text-xs text-gray-400 mb-2">Đặt mục tiêu (phút/ngày):</p>
-        <div class="flex gap-2">
-          <input id="goal-input" type="number" min="1" max="480" placeholder="15"
-                 class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-100
+
+      <!-- Mobile Menu Dropdown -->
+      <div id="player-mobile-menu"
+        class="hidden absolute top-full left-0 right-0 bg-gray-900 border-b border-gray-800 flex flex-col p-4 gap-3 lg:hidden shadow-2xl z-50">
+        <a href="{{ url_for('weekly_review') }}"
+          class="text-emerald-400 hover:text-emerald-300 text-sm font-semibold inline-block">📈 Review</a>
+        <a href="{{ url_for('learning_path') }}"
+          class="text-purple-400 hover:text-purple-300 text-sm font-semibold inline-block">🗺 Lộ trình</a>
+        <a href="{{ url_for('learning_sources') }}"
+          class="text-cyan-400 hover:text-cyan-300 text-sm font-semibold inline-block">📚 Nguồn học</a>
+        <a href="{{ url_for('bookmarks_all') }}"
+          class="text-yellow-400 hover:text-yellow-300 text-sm font-semibold inline-block">★ Bookmarks Tất cả</a>
+        <a href="{{ url_for('add_video_form') }}"
+          class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition text-center mt-2">＋
+          Thêm video</a>
+      </div>
+
+      <!-- Goal settings panel (hidden) -->
+      <div id="goal-panel"
+        class="hidden absolute top-12 right-4 z-50 bg-gray-900 border border-gray-700 rounded-xl p-4 shadow-xl w-64 space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-semibold text-gray-100">🎯 Mục tiêu hàng ngày</span>
+          <button onclick="toggleGoalPanel()" class="text-gray-500 hover:text-gray-300 text-xs">✕</button>
+        </div>
+        <div>
+          <p class="text-xs text-gray-400 mb-2">Thời gian đã luyện hôm nay:</p>
+          <div class="flex items-end gap-2 mb-2">
+            <span id="goal-today-display" class="text-2xl font-bold text-indigo-400">0:00</span>
+            <span class="text-xs text-gray-500 mb-1">/ <span id="goal-target-display">15</span> phút</span>
+          </div>
+          <div class="w-full h-2 bg-gray-700 rounded-full overflow-hidden mb-1">
+            <div id="goal-progress-bar-panel" class="h-full bg-indigo-500 rounded-full transition-all" style="width:0%">
+            </div>
+          </div>
+          <p id="goal-status-text" class="text-xs text-gray-500"></p>
+        </div>
+        <div class="border-t border-gray-800 pt-3">
+          <p class="text-xs text-gray-400 mb-2">Đặt mục tiêu (phút/ngày):</p>
+          <div class="flex gap-2">
+            <input id="goal-input" type="number" min="1" max="480" placeholder="15" class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-100
                         focus:outline-none focus:border-indigo-500" />
-          <button onclick="saveGoal()"
-                  class="bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
-            Lưu
-          </button>
-        </div>
-        <div class="flex gap-1 mt-2 flex-wrap">
-          <button onclick="document.getElementById('goal-input').value=10; saveGoal()"
-                  class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-400 px-2 py-1 rounded transition">10p</button>
-          <button onclick="document.getElementById('goal-input').value=15; saveGoal()"
-                  class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-400 px-2 py-1 rounded transition">15p</button>
-          <button onclick="document.getElementById('goal-input').value=30; saveGoal()"
-                  class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-400 px-2 py-1 rounded transition">30p</button>
-          <button onclick="document.getElementById('goal-input').value=60; saveGoal()"
-                  class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-400 px-2 py-1 rounded transition">60p</button>
+            <button onclick="saveGoal()"
+              class="bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+              Lưu
+            </button>
+          </div>
+          <div class="flex gap-1 mt-2 flex-wrap">
+            <button onclick="document.getElementById('goal-input').value=10; saveGoal()"
+              class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-400 px-2 py-1 rounded transition">10p</button>
+            <button onclick="document.getElementById('goal-input').value=15; saveGoal()"
+              class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-400 px-2 py-1 rounded transition">15p</button>
+            <button onclick="document.getElementById('goal-input').value=30; saveGoal()"
+              class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-400 px-2 py-1 rounded transition">30p</button>
+            <button onclick="document.getElementById('goal-input').value=60; saveGoal()"
+              class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-400 px-2 py-1 rounded transition">60p</button>
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Main layout (resizable) -->
-  <div id="main-layout" class="flex flex-1 overflow-hidden flex-col lg:flex-row">
+    <!-- Main layout (resizable) -->
+    <div id="main-layout" class="flex flex-1 overflow-hidden flex-col lg:flex-row">
 
-    <!-- LEFT: Video panel -->
-    <div id="left-panel" class="flex-none lg:h-auto lg:w-3/5 flex flex-col bg-gray-900 border-r border-gray-800 overflow-y-auto lg:overflow-hidden" style="min-width:200px;">
+      <!-- LEFT: Video panel -->
+      <div id="left-panel"
+        class="flex-none lg:h-auto lg:w-3/5 flex flex-col bg-gray-900 border-r border-gray-800 overflow-y-auto lg:overflow-hidden"
+        style="min-width:200px;">
 
-      <!-- Mobile Video Toggle Header -->
-      <div class="lg:hidden flex justify-between items-center px-3 py-2 border-b border-gray-800 bg-gray-950">
-        <button onclick="toggleVideoCollapse()" id="video-toggle-btn" class="text-xs text-indigo-400 font-semibold flex items-center gap-1 bg-indigo-900/30 px-2 py-1 rounded">
-          ▼ Gấp gọn Video
-        </button>
-        <button id="mobile-loop-btn" onclick="toggleLoop()" class="text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded">
-          🔁 Loop OFF
-        </button>
-      </div>
-
-      <!-- YouTube player container -->
-      <div id="video-container" class="w-full bg-black transition-all duration-300 relative overflow-hidden" style="aspect-ratio: 16/9;">
-        <div id="youtube-player" class="w-full h-full"></div>
-      </div>
-
-      <!-- Controls -->
-      <div class="p-3 space-y-3 flex-shrink-0">
-
-        <!-- Playback controls -->
-        <div class="flex items-center gap-2 mb-2 lg:mb-0">
-          <button onclick="seekRelative(-5)"
-                  class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-sm px-3 py-3 lg:py-2 rounded-lg transition flex-1 lg:flex-none">
-            ⏮ -5s
+        <!-- Mobile Video Toggle Header -->
+        <div class="lg:hidden flex justify-between items-center px-3 py-2 border-b border-gray-800 bg-gray-950">
+          <button onclick="toggleVideoCollapse()" id="video-toggle-btn"
+            class="text-xs text-indigo-400 font-semibold flex items-center gap-1 bg-indigo-900/30 px-2 py-1 rounded">
+            ▼ Gấp gọn Video
           </button>
-          <button id="play-pause-btn" onclick="togglePlayPause()"
-                  class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-lg lg:text-sm px-8 py-3 lg:py-2 rounded-lg transition flex-shrink-0 lg:flex-none">
-            ▶ / ⏸
-          </button>
-          <button onclick="seekRelative(5)"
-                  class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-sm px-3 py-3 lg:py-2 rounded-lg transition flex-1 lg:flex-none">
-            +5s ⏭
-          </button>
-          
-          <button id="loop-btn" onclick="toggleLoop()"
-                  class="hidden lg:block bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-xs px-3 py-2 rounded-lg transition ml-auto">
+          <button id="mobile-loop-btn" onclick="toggleLoop()"
+            class="text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded">
             🔁 Loop OFF
           </button>
-          
-          <!-- Mobile toggle for advanced controls -->
-          <button onclick="document.getElementById('advanced-controls').classList.toggle('hidden')"
-                  class="lg:hidden ml-auto flex-shrink-0 text-xs bg-gray-700 hover:bg-gray-600 border border-gray-600 text-gray-200 px-3 py-3 rounded-lg font-semibold">
-            ⚙️ Tùy chỉnh
-          </button>
         </div>
 
-        <div id="advanced-controls" class="hidden lg:block space-y-3">
-          <!-- Speed buttons -->
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-xs text-gray-400 font-medium w-full sm:w-auto">Tốc độ:</span>
-            <button class="speed-btn text-xs px-3 py-2 lg:py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
-                    data-speed="0.5" onclick="setSpeed(0.5)">0.5×</button>
-            <button class="speed-btn text-xs px-3 py-2 lg:py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
-                    data-speed="0.75" onclick="setSpeed(0.75)">0.75×</button>
-            <button class="speed-btn text-xs px-3 py-2 lg:py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition active"
-                    data-speed="1" onclick="setSpeed(1)">1×</button>
-            <button class="speed-btn text-xs px-3 py-2 lg:py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
-                    data-speed="1.25" onclick="setSpeed(1.25)">1.25×</button>
-            <button class="speed-btn text-xs px-3 py-2 lg:py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
-                    data-speed="1.5" onclick="setSpeed(1.5)">1.5×</button>
-            <button class="speed-btn text-xs px-3 py-2 lg:py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
-                    data-speed="2" onclick="setSpeed(2)">2×</button>
-          </div>
-
-        <!-- Loop A-B controls (hidden by default) -->
-        <div id="loop-ab-controls" class="items-center gap-2 flex-wrap" style="display:none">
-          <button id="set-a-btn" onclick="setLoopA()"
-                  class="bg-yellow-900 hover:bg-yellow-800 border border-yellow-700 text-yellow-300 text-xs px-3 py-2 rounded-lg transition">
-            Set A
-          </button>
-          <button id="set-b-btn" onclick="setLoopB()"
-                  class="bg-orange-900 hover:bg-orange-800 border border-orange-700 text-orange-300 text-xs px-3 py-2 rounded-lg transition">
-            Set B
-          </button>
-          <button onclick="clearLoop()"
-                  class="bg-gray-700 hover:bg-gray-600 border border-gray-600 text-gray-300 text-xs px-3 py-2 rounded-lg transition">
-            Clear
-          </button>
+        <!-- YouTube player container -->
+        <div id="video-container" class="w-full bg-black transition-all duration-300 relative overflow-hidden"
+          style="aspect-ratio: 16/9;">
+          <div id="youtube-player" class="w-full h-full"></div>
         </div>
 
-        {% if chunks %}
-        <!-- Chunk loop panel -->
-        <div class="border-t border-gray-800 pt-2">
-          <div class="flex items-center gap-2 mb-2">
-            <span class="text-xs text-gray-400 font-medium">🔁 Loop chunk:</span>
-            <button onclick="stopChunkLoop()"
-                    id="chunk-loop-stop-btn"
-                    class="hidden text-xs bg-red-900 hover:bg-red-800 border border-red-700 text-red-300 px-2 py-1 rounded-lg transition">
-              ⏹ Dừng loop
+        <!-- Controls -->
+        <div class="p-3 space-y-3 flex-shrink-0">
+
+          <!-- Playback controls -->
+          <div class="flex items-center gap-2 mb-2 lg:mb-0">
+            <button onclick="seekRelative(-5)"
+              class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-sm px-3 py-3 lg:py-2 rounded-lg transition flex-1 lg:flex-none">
+              ⏮ -5s
+            </button>
+            <button id="play-pause-btn" onclick="togglePlayPause()"
+              class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-lg lg:text-sm px-8 py-3 lg:py-2 rounded-lg transition flex-shrink-0 lg:flex-none">
+              ▶ / ⏸
+            </button>
+            <button onclick="seekRelative(5)"
+              class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-sm px-3 py-3 lg:py-2 rounded-lg transition flex-1 lg:flex-none">
+              +5s ⏭
+            </button>
+
+            <button id="loop-btn" onclick="toggleLoop()"
+              class="hidden lg:block bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-xs px-3 py-2 rounded-lg transition ml-auto">
+              🔁 Loop OFF
+            </button>
+
+            <!-- Mobile toggle for advanced controls -->
+            <button onclick="document.getElementById('advanced-controls').classList.toggle('hidden')"
+              class="lg:hidden ml-auto flex-shrink-0 text-xs bg-gray-700 hover:bg-gray-600 border border-gray-600 text-gray-200 px-3 py-3 rounded-lg font-semibold">
+              ⚙️ Tùy chỉnh
             </button>
           </div>
-          <div class="flex flex-wrap gap-1.5">
-            {% for chunk in chunks %}
-            <button id="chunk-loop-btn-{{ chunk.id }}"
-                    onclick="toggleChunkLoop({{ chunk.id }}, {{ chunk.start_time }}, {{ chunk.end_time }}, this)"
-                    class="chunk-loop-btn text-xs bg-gray-800 hover:bg-indigo-800 border border-gray-700 text-gray-300 px-2.5 py-1.5 rounded-lg transition"
-                    title="{{ '%02d:%02d' | format((chunk.start_time // 60)|int, (chunk.start_time % 60)|int) }} – {{ '%02d:%02d' | format((chunk.end_time // 60)|int, (chunk.end_time % 60)|int) }}">
-              {{ chunk.label }}
-              <span class="text-gray-500 ml-1 font-mono text-[10px]">
-                {{ '%d:%02d' | format((chunk.start_time // 60)|int, (chunk.start_time % 60)|int) }}
-              </span>
-            </button>
-            {% endfor %}
-          </div>
-          <div id="chunk-loop-status" class="hidden mt-1 text-xs text-indigo-400 animate-pulse"></div>
-        </div>
-        {% endif %}
 
-        <!-- Shadowing mode -->
-        <div class="flex items-center gap-2 flex-wrap">
-          <label class="flex items-center gap-2 cursor-pointer text-xs text-gray-400">
-            <input type="checkbox" id="shadowing-mode" onchange="toggleShadowingMode()"
-                   class="w-3.5 h-3.5 rounded accent-indigo-500" />
-            🎭 Shadowing mode (ẩn text, hiện sau 1.5s)
-          </label>
-          <span class="text-gray-700">|</span>
-          <label class="flex items-center gap-2 cursor-pointer text-xs text-gray-400">
-            <input type="checkbox" id="dictation-mode" onchange="toggleDictationMode()"
-                   class="w-3.5 h-3.5 rounded accent-orange-500" />
-            ✍️ Dictation mode (nghe → gõ → chấm điểm)
-          </label>
-        </div>
+          <div id="advanced-controls" class="hidden lg:block space-y-3">
+            <!-- Speed buttons -->
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-xs text-gray-400 font-medium w-full sm:w-auto">Tốc độ:</span>
+              <button
+                class="speed-btn text-xs px-3 py-2 lg:py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
+                data-speed="0.5" onclick="setSpeed(0.5)">0.5×</button>
+              <button
+                class="speed-btn text-xs px-3 py-2 lg:py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
+                data-speed="0.75" onclick="setSpeed(0.75)">0.75×</button>
+              <button
+                class="speed-btn text-xs px-3 py-2 lg:py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition active"
+                data-speed="1" onclick="setSpeed(1)">1×</button>
+              <button
+                class="speed-btn text-xs px-3 py-2 lg:py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
+                data-speed="1.25" onclick="setSpeed(1.25)">1.25×</button>
+              <button
+                class="speed-btn text-xs px-3 py-2 lg:py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
+                data-speed="1.5" onclick="setSpeed(1.5)">1.5×</button>
+              <button
+                class="speed-btn text-xs px-3 py-2 lg:py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 transition"
+                data-speed="2" onclick="setSpeed(2)">2×</button>
+            </div>
 
-          <!-- Timeline offset -->
-          <div class="border-t border-gray-800 pt-2 flex items-center gap-2 flex-wrap">
-            <span class="text-xs text-gray-400 font-medium">⏱ Timeline offset:</span>
-            <button onclick="adjustOffset(-1)"
-                    class="bg-gray-800 hover:bg-red-900 border border-gray-700 text-gray-400 text-xs px-2 py-1 rounded transition">−1s</button>
-            <button onclick="adjustOffset(-0.5)"
-                    class="bg-gray-800 hover:bg-red-900 border border-gray-700 text-gray-400 text-xs px-2 py-1 rounded transition">−0.5s</button>
-            <span id="offset-display"
-                  class="text-xs font-mono font-bold text-yellow-400 bg-gray-800 border border-gray-700 px-2 py-1 rounded min-w-[52px] text-center">
-              ±0.0s
-            </span>
-            <button onclick="adjustOffset(0.5)"
-                    class="bg-gray-800 hover:bg-green-900 border border-gray-700 text-gray-400 text-xs px-2 py-1 rounded transition">+0.5s</button>
-            <button onclick="adjustOffset(1)"
-                    class="bg-gray-800 hover:bg-green-900 border border-gray-700 text-gray-400 text-xs px-2 py-1 rounded transition">+1s</button>
-            <button onclick="saveOffset()"
-                    class="bg-indigo-700 hover:bg-indigo-600 border border-indigo-600 text-white text-xs px-3 py-1 rounded transition ml-auto">💾 Lưu</button>
-            <button onclick="resetOffset()"
-                    class="bg-gray-700 hover:bg-gray-600 border border-gray-600 text-gray-400 text-xs px-2 py-1 rounded transition">↺</button>
-          </div>
-        </div>
+            <!-- Loop A-B controls (hidden by default) -->
+            <div id="loop-ab-controls" class="items-center gap-2 flex-wrap" style="display:none">
+              <button id="set-a-btn" onclick="setLoopA()"
+                class="bg-yellow-900 hover:bg-yellow-800 border border-yellow-700 text-yellow-300 text-xs px-3 py-2 rounded-lg transition">
+                Set A
+              </button>
+              <button id="set-b-btn" onclick="setLoopB()"
+                class="bg-orange-900 hover:bg-orange-800 border border-orange-700 text-orange-300 text-xs px-3 py-2 rounded-lg transition">
+                Set B
+              </button>
+              <button onclick="clearLoop()"
+                class="bg-gray-700 hover:bg-gray-600 border border-gray-600 text-gray-300 text-xs px-3 py-2 rounded-lg transition">
+                Clear
+              </button>
+            </div>
 
-      </div>
-    </div>
-
-    <!-- RIGHT: Lyrics panel -->
-    <div id="right-panel" class="flex-1 min-h-0 lg:flex-none lg:w-2/5 flex flex-col overflow-hidden" style="min-width:160px;">
-
-      <!-- Lyrics header -->
-      <div class="bg-gray-900 border-b border-gray-800 px-3 py-2 flex items-center gap-2 flex-shrink-0">
-        <span class="text-sm font-semibold text-gray-200 mr-auto">📜 Lyrics</span>
-
-        <!-- Visibility group: compact button row -->
-        <div class="flex items-center border border-gray-700 rounded-lg overflow-hidden">
-          <button id="toggle-text-btn" onclick="toggleText()"
-                  class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-2 py-1.5 border-r border-gray-700 transition"
-                  title="Ẩn/hiện text">T</button>
-          <button id="toggle-translation-btn" onclick="toggleTranslation()"
-                  class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-2 py-1.5 transition"
-                  title="Ẩn/hiện dịch">VI</button>
-        </div>
-
-        <button id="auto-scroll-btn" onclick="toggleAutoScroll()"
-                class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 py-1.5 rounded-lg transition"
-                title="Tự động cuộn">📍</button>
-        <button id="auto-pause-btn" onclick="toggleAutoPause()"
-                class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 py-1.5 rounded-lg transition"
-                title="Auto-pause sau mỗi segment (phím p)">⏸</button>
-        <button id="range-loop-btn" onclick="toggleRangeLoopMode()"
-                class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 py-1.5 rounded-lg transition"
-                title="Lặp nhiều đoạn: nhấn → click 🔂 đoạn đầu → click 🔂 đoạn cuối">🔂 Range</button>
-        <label class="flex items-center gap-1 text-xs text-gray-400 cursor-pointer" title="Chỉ hiện segments đã bookmark">
-          <input type="checkbox" id="filter-bookmarked" onchange="filterByBookmark(this.checked)"
-                 class="w-3 h-3 accent-yellow-400" />
-          ★
-        </label>
-        <button onclick="openReader()"
-                class="text-xs bg-purple-900 hover:bg-purple-800 border border-purple-700 text-purple-300 px-2 py-1.5 rounded-lg transition"
-                title="Đọc toàn transcript">📖</button>
-      </div>
-
-      <!-- Dictation panel (hidden by default) -->
-      <div id="dictation-panel" class="hidden flex-shrink-0 bg-gray-900 border-b border-gray-800 px-3 py-3">
-        <div class="space-y-2">
-          <!-- Current segment info -->
-          <div class="flex items-center gap-2">
-            <span class="text-xs font-mono text-gray-500" id="dictation-seg-time">--:--</span>
-            <span class="text-xs text-orange-400 font-semibold">✍️ Nghe và gõ lại câu bạn nghe được</span>
-            <button onclick="replayDictationSegment()"
-                    class="ml-auto text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 py-1 rounded transition"
-                    title="Nghe lại (phím R)">🔄 Nghe lại</button>
-          </div>
-          <!-- Input area -->
-          <textarea id="dictation-input" rows="2" placeholder="Gõ câu bạn nghe được vào đây…"
-                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100
-                           placeholder-gray-500 focus:outline-none focus:border-orange-500 resize-none"
-                    onkeydown="handleDictationKey(event)"></textarea>
-          <!-- Action buttons -->
-          <div class="flex items-center gap-2">
-            <button onclick="checkDictation()"
-                    class="bg-orange-700 hover:bg-orange-600 text-white text-xs font-semibold px-4 py-2 rounded-lg transition">
-              ✓ Kiểm tra (Enter)
-            </button>
-            <button onclick="showDictationAnswer()"
-                    class="bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs px-3 py-2 rounded-lg transition">
-              👁 Xem đáp án
-            </button>
-            <button onclick="nextDictationSegment()"
-                    class="bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs px-3 py-2 rounded-lg transition">
-              Câu tiếp →
-            </button>
-            <!-- Score display -->
-            <div id="dictation-score" class="ml-auto text-sm font-bold hidden"></div>
-          </div>
-          <!-- Result comparison -->
-          <div id="dictation-result" class="hidden rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 space-y-1">
-            <p class="text-xs text-gray-400">So sánh:</p>
-            <p id="dictation-diff" class="text-sm leading-relaxed"></p>
-            <p id="dictation-original" class="text-sm text-emerald-400 italic"></p>
-            <p id="dictation-translation" class="text-xs text-gray-400 italic"></p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Segments list -->
-      <div id="lyrics-panel" class="lyrics-panel flex-1 overflow-y-auto px-3 py-2 space-y-1">
-        {% for seg in segments %}
-        <div class="segment-item rounded-lg overflow-hidden border border-transparent"
-             data-start="{{ seg.start_time }}"
-             data-end="{{ seg.end_time }}"
-             data-seg-id="{{ seg.id }}"
-             data-index="{{ loop.index0 }}">
-
-          <!-- Play zone: clicking here seeks the video -->
-          <div class="seg-play-zone flex items-center gap-2 px-3 pt-2 pb-1 cursor-pointer hover:bg-gray-800 rounded-t-lg transition"
-               onclick="segmentDivClick(event, {{ seg.start_time }})">
-            <div class="flex items-center gap-1.5 flex-1 min-w-0">
-              <span class="ts-badge text-xs text-gray-500 font-mono flex-shrink-0">
-                {{ '%02d:%02d' | format((seg.start_time // 60)|int, (seg.start_time % 60)|int) }}
-              </span>
-              <div class="ts-quick-row flex-shrink-0">
-                <button class="ts-quick-btn ts-quick-start"
-                        onmousedown="event.preventDefault()"
-                        onclick="event.stopPropagation(); quickCapture(this.closest('.segment-item'), 'start')"
-                        title="">
-                  ⌚ Start
+            {% if chunks %}
+            <!-- Chunk loop panel -->
+            <div class="border-t border-gray-800 pt-2">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-xs text-gray-400 font-medium">🔁 Loop chunk:</span>
+                <button onclick="stopChunkLoop()" id="chunk-loop-stop-btn"
+                  class="hidden text-xs bg-red-900 hover:bg-red-800 border border-red-700 text-red-300 px-2 py-1 rounded-lg transition">
+                  ⏹ Dừng loop
                 </button>
               </div>
+              <div class="flex flex-wrap gap-1.5">
+                {% for chunk in chunks %}
+                <button id="chunk-loop-btn-{{ chunk.id }}"
+                  onclick="toggleChunkLoop({{ chunk.id }}, {{ chunk.start_time }}, {{ chunk.end_time }}, this)"
+                  class="chunk-loop-btn text-xs bg-gray-800 hover:bg-indigo-800 border border-gray-700 text-gray-300 px-2.5 py-1.5 rounded-lg transition"
+                  title="{{ '%02d:%02d' | format((chunk.start_time // 60)|int, (chunk.start_time % 60)|int) }} – {{ '%02d:%02d' | format((chunk.end_time // 60)|int, (chunk.end_time % 60)|int) }}">
+                  {{ chunk.label }}
+                  <span class="text-gray-500 ml-1 font-mono text-[10px]">
+                    {{ '%d:%02d' | format((chunk.start_time // 60)|int, (chunk.start_time % 60)|int) }}
+                  </span>
+                </button>
+                {% endfor %}
+              </div>
+              <div id="chunk-loop-status" class="hidden mt-1 text-xs text-indigo-400 animate-pulse"></div>
             </div>
-            <!-- Loop & Bookmark inline with timestamp -->
-            <button class="seg-loop-btn text-xs px-1 rounded text-gray-600 hover:text-indigo-300 transition flex-shrink-0"
-                    data-seg-id="{{ seg.id }}"
-                    onmousedown="event.preventDefault()"
-                    onclick="event.stopPropagation(); toggleLoopSegment({{ seg.id }})"
-                    title="Lặp segment này (phím l)">🔂</button>
-            <button class="seg-bookmark-btn btn-bookmark text-xs px-1 rounded transition flex-shrink-0 {% if seg.bookmarked %}text-yellow-400{% else %}text-gray-600 hover:text-yellow-400{% endif %}"
-                    data-seg-id="{{ seg.id }}"
-                    data-bookmarked="{% if seg.bookmarked %}true{% else %}false{% endif %}"
-                    onmousedown="event.preventDefault()"
-                    onclick="event.stopPropagation(); toggleBookmark(event, this)"
-                    title="Đánh dấu">{% if seg.bookmarked %}★{% else %}☆{% endif %}</button>
-            {% set pc = seg.practice_count or 0 %}
-            <span class="seg-practice-badge text-xs flex-shrink-0 cursor-default"
-                  data-seg-id="{{ seg.id }}"
-                  data-count="{{ pc }}"
-                  title="Đã luyện {{ pc }} lần">
-              {%- if pc >= 20 %}🌺🌿🌿
-              {%- elif pc >= 15 %}🌸🌿🌿
-              {%- elif pc >= 10 %}🌿🌿
-              {%- elif pc >= 5 %}🌿
-              {%- endif -%}
-            </span>
-          </div>
-
-          <!-- Content zone: editable, does NOT seek -->
-          <div class="seg-content-zone px-3 pb-2 cursor-text">
-            <p class="segment-text text-white font-medium leading-relaxed seg-editable"
-               contenteditable="true"
-               onkeydown="handleSegEditKey(event, this)"
-               onfocusout="saveSegmentContent(this, 'text', this.closest('.segment-item'))">{{ seg.text }}</p>
-
-            {% if seg.translation %}
-            <p class="translation-text segment-translation seg-editable"
-               contenteditable="true"
-               onkeydown="handleSegEditKey(event, this)"
-               onfocusout="saveSegmentContent(this, 'translation', this.closest('.segment-item'))">{{ seg.translation }}</p>
             {% endif %}
+
+            <!-- Shadowing mode -->
+            <div class="flex items-center gap-2 flex-wrap">
+              <label class="flex items-center gap-2 cursor-pointer text-xs text-gray-400">
+                <input type="checkbox" id="shadowing-mode" onchange="toggleShadowingMode()"
+                  class="w-3.5 h-3.5 rounded accent-indigo-500" />
+                🎭 Shadowing mode (ẩn text, hiện sau 1.5s)
+              </label>
+              <span class="text-gray-700">|</span>
+              <label class="flex items-center gap-2 cursor-pointer text-xs text-gray-400">
+                <input type="checkbox" id="dictation-mode" onchange="toggleDictationMode()"
+                  class="w-3.5 h-3.5 rounded accent-orange-500" />
+                ✍️ Dictation mode (nghe → gõ → chấm điểm)
+              </label>
+            </div>
+
+            <!-- Timeline offset -->
+            <div class="border-t border-gray-800 pt-2 flex items-center gap-2 flex-wrap">
+              <span class="text-xs text-gray-400 font-medium">⏱ Timeline offset:</span>
+              <button onclick="adjustOffset(-1)"
+                class="bg-gray-800 hover:bg-red-900 border border-gray-700 text-gray-400 text-xs px-2 py-1 rounded transition">−1s</button>
+              <button onclick="adjustOffset(-0.5)"
+                class="bg-gray-800 hover:bg-red-900 border border-gray-700 text-gray-400 text-xs px-2 py-1 rounded transition">−0.5s</button>
+              <span id="offset-display"
+                class="text-xs font-mono font-bold text-yellow-400 bg-gray-800 border border-gray-700 px-2 py-1 rounded min-w-[52px] text-center">
+                ±0.0s
+              </span>
+              <button onclick="adjustOffset(0.5)"
+                class="bg-gray-800 hover:bg-green-900 border border-gray-700 text-gray-400 text-xs px-2 py-1 rounded transition">+0.5s</button>
+              <button onclick="adjustOffset(1)"
+                class="bg-gray-800 hover:bg-green-900 border border-gray-700 text-gray-400 text-xs px-2 py-1 rounded transition">+1s</button>
+              <button onclick="saveOffset()"
+                class="bg-indigo-700 hover:bg-indigo-600 border border-indigo-600 text-white text-xs px-3 py-1 rounded transition ml-auto">💾
+                Lưu</button>
+              <button onclick="resetOffset()"
+                class="bg-gray-700 hover:bg-gray-600 border border-gray-600 text-gray-400 text-xs px-2 py-1 rounded transition">↺</button>
+            </div>
           </div>
 
         </div>
-        {% endfor %}
+      </div>
 
-        {% if not segments %}
-        <div class="text-center py-16 text-gray-400">
-          <p class="text-4xl mb-3">📭</p>
-          <p class="text-sm">Chưa có transcript.</p>
-          <a href="{{ url_for('show_prompt', video_db_id=video.id) }}"
-             class="text-indigo-400 hover:text-indigo-300 text-xs underline">Thêm transcript ngay</a>
+      <!-- RIGHT: Lyrics panel -->
+      <div id="right-panel" class="flex-1 min-h-0 lg:flex-none lg:w-2/5 flex flex-col overflow-hidden"
+        style="min-width:160px;">
+
+        <!-- Lyrics header -->
+        <div class="bg-gray-900 border-b border-gray-800 px-3 py-2 flex items-center gap-2 flex-shrink-0">
+          <span class="text-sm font-semibold text-gray-200 mr-auto">📜 Lyrics</span>
+
+          <!-- Visibility group: compact button row -->
+          <div class="flex items-center border border-gray-700 rounded-lg overflow-hidden">
+            <button id="toggle-text-btn" onclick="toggleText()"
+              class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-2 py-1.5 border-r border-gray-700 transition"
+              title="Ẩn/hiện text">T</button>
+            <button id="toggle-translation-btn" onclick="toggleTranslation()"
+              class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-2 py-1.5 transition"
+              title="Ẩn/hiện dịch">VI</button>
+          </div>
+
+          <button id="auto-scroll-btn" onclick="toggleAutoScroll()"
+            class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 py-1.5 rounded-lg transition"
+            title="Tự động cuộn">📍</button>
+          <button id="auto-pause-btn" onclick="toggleAutoPause()"
+            class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 py-1.5 rounded-lg transition"
+            title="Auto-pause sau mỗi segment (phím p)">⏸</button>
+          <button id="range-loop-btn" onclick="toggleRangeLoopMode()"
+            class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 py-1.5 rounded-lg transition"
+            title="Lặp nhiều đoạn: nhấn → click 🔂 đoạn đầu → click 🔂 đoạn cuối">🔂 Range</button>
+          <label class="flex items-center gap-1 text-xs text-gray-400 cursor-pointer"
+            title="Chỉ hiện segments đã bookmark">
+            <input type="checkbox" id="filter-bookmarked" onchange="filterByBookmark(this.checked)"
+              class="w-3 h-3 accent-yellow-400" />
+            ★
+          </label>
+          <button onclick="openReader()"
+            class="text-xs bg-purple-900 hover:bg-purple-800 border border-purple-700 text-purple-300 px-2 py-1.5 rounded-lg transition"
+            title="Đọc toàn transcript">📖</button>
         </div>
-        {% endif %}
+
+        <!-- Dictation panel (hidden by default) -->
+        <div id="dictation-panel" class="hidden flex-shrink-0 bg-gray-900 border-b border-gray-800 px-3 py-3">
+          <div class="space-y-2">
+            <!-- Current segment info -->
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-mono text-gray-500" id="dictation-seg-time">--:--</span>
+              <span class="text-xs text-orange-400 font-semibold">✍️ Nghe và gõ lại câu bạn nghe được</span>
+              <button onclick="replayDictationSegment()"
+                class="ml-auto text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 py-1 rounded transition"
+                title="Nghe lại (phím R)">🔄 Nghe lại</button>
+            </div>
+            <!-- Input area -->
+            <textarea id="dictation-input" rows="2" placeholder="Gõ câu bạn nghe được vào đây…" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100
+                           placeholder-gray-500 focus:outline-none focus:border-orange-500 resize-none"
+              onkeydown="handleDictationKey(event)"></textarea>
+            <!-- Action buttons -->
+            <div class="flex items-center gap-2">
+              <button onclick="checkDictation()"
+                class="bg-orange-700 hover:bg-orange-600 text-white text-xs font-semibold px-4 py-2 rounded-lg transition">
+                ✓ Kiểm tra (Enter)
+              </button>
+              <button onclick="showDictationAnswer()"
+                class="bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs px-3 py-2 rounded-lg transition">
+                👁 Xem đáp án
+              </button>
+              <button onclick="nextDictationSegment()"
+                class="bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs px-3 py-2 rounded-lg transition">
+                Câu tiếp →
+              </button>
+              <!-- Score display -->
+              <div id="dictation-score" class="ml-auto text-sm font-bold hidden"></div>
+            </div>
+            <!-- Result comparison -->
+            <div id="dictation-result" class="hidden rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 space-y-1">
+              <p class="text-xs text-gray-400">So sánh:</p>
+              <p id="dictation-diff" class="text-sm leading-relaxed"></p>
+              <p id="dictation-original" class="text-sm text-emerald-400 italic"></p>
+              <p id="dictation-translation" class="text-xs text-gray-400 italic"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Segments list -->
+        <div id="lyrics-panel" class="lyrics-panel flex-1 overflow-y-auto px-3 py-2 space-y-1">
+          {% for seg in segments %}
+          <div class="segment-item rounded-lg overflow-hidden border border-transparent"
+            data-start="{{ seg.start_time }}" data-end="{{ seg.end_time }}" data-seg-id="{{ seg.id }}"
+            data-index="{{ loop.index0 }}">
+
+            <!-- Play zone: clicking here seeks the video -->
+            <div
+              class="seg-play-zone flex items-center gap-2 px-3 pt-2 pb-1 cursor-pointer hover:bg-gray-800 rounded-t-lg transition"
+              onclick="segmentDivClick(event, {{ seg.start_time }})">
+              <div class="flex items-center gap-1.5 flex-1 min-w-0">
+                <span class="ts-badge text-xs text-gray-500 font-mono flex-shrink-0">
+                  {{ '%02d:%02d' | format((seg.start_time // 60)|int, (seg.start_time % 60)|int) }}
+                </span>
+                <div class="ts-quick-row flex-shrink-0">
+                  <button class="ts-quick-btn ts-quick-start" onmousedown="event.preventDefault()"
+                    onclick="event.stopPropagation(); quickCapture(this.closest('.segment-item'), 'start')" title="">
+                    ⌚ Start
+                  </button>
+                </div>
+              </div>
+              <!-- Loop & Bookmark inline with timestamp -->
+              <button
+                class="seg-loop-btn text-xs px-1 rounded text-gray-600 hover:text-indigo-300 transition flex-shrink-0"
+                data-seg-id="{{ seg.id }}" onmousedown="event.preventDefault()"
+                onclick="event.stopPropagation(); toggleLoopSegment({{ seg.id }})"
+                title="Lặp segment này (phím l)">🔂</button>
+              <button
+                class="seg-bookmark-btn btn-bookmark text-xs px-1 rounded transition flex-shrink-0 {% if seg.bookmarked %}text-yellow-400{% else %}text-gray-600 hover:text-yellow-400{% endif %}"
+                data-seg-id="{{ seg.id }}" data-bookmarked="{% if seg.bookmarked %}true{% else %}false{% endif %}"
+                onmousedown="event.preventDefault()" onclick="event.stopPropagation(); toggleBookmark(event, this)"
+                title="Đánh dấu">{% if seg.bookmarked %}★{% else %}☆{% endif %}</button>
+              {% set pc = seg.practice_count or 0 %}
+              <span class="seg-practice-badge text-xs flex-shrink-0 cursor-default" data-seg-id="{{ seg.id }}"
+                data-count="{{ pc }}" title="Đã luyện {{ pc }} lần">
+                {%- if pc >= 20 %}🌺🌿🌿
+                {%- elif pc >= 15 %}🌸🌿🌿
+                {%- elif pc >= 10 %}🌿🌿
+                {%- elif pc >= 5 %}🌿
+                {%- endif -%}
+              </span>
+            </div>
+
+            <!-- Content zone: editable, does NOT seek -->
+            <div class="seg-content-zone px-3 pb-2 cursor-text">
+              <p class="segment-text text-white font-medium leading-relaxed seg-editable" contenteditable="true"
+                onkeydown="handleSegEditKey(event, this)"
+                onfocusout="saveSegmentContent(this, 'text', this.closest('.segment-item'))">{{ seg.text }}</p>
+
+              {% if seg.translation %}
+              <p class="translation-text segment-translation seg-editable" contenteditable="true"
+                onkeydown="handleSegEditKey(event, this)"
+                onfocusout="saveSegmentContent(this, 'translation', this.closest('.segment-item'))">{{ seg.translation
+                }}</p>
+              {% endif %}
+            </div>
+
+          </div>
+          {% endfor %}
+
+          {% if not segments %}
+          <div class="text-center py-16 text-gray-400">
+            <p class="text-4xl mb-3">📭</p>
+            <p class="text-sm">Chưa có transcript.</p>
+            <a href="{{ url_for('show_prompt', video_db_id=video.id) }}"
+              class="text-indigo-400 hover:text-indigo-300 text-xs underline">Thêm transcript ngay</a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Transcript Reader Modal ─────────────────────────────────────── -->
+  <div id="reader-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4"
+    style="background:rgba(0,0,0,0.75);" onclick="closeReaderOutside(event)">
+    <div class="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl"
+      onclick="event.stopPropagation()">
+      <!-- Modal header -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-shrink-0 flex-wrap gap-2">
+        <h2 class="text-lg font-bold text-gray-100">📖 Transcript — đọc hiểu</h2>
+        <div class="flex items-center gap-2">
+          <label class="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer">
+            <input type="checkbox" id="reader-show-translation" checked onchange="renderReader()"
+              class="w-3.5 h-3.5 rounded accent-indigo-500" />
+            🌐 Dịch
+          </label>
+          <button id="reader-copy-btn" onclick="copyReaderText()"
+            class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-3 py-1.5 rounded-lg transition">
+            📋 Copy text
+          </button>
+          <button onclick="closeReader()"
+            class="text-xs bg-red-900 hover:bg-red-800 border border-red-700 text-red-300 px-3 py-1.5 rounded-lg transition">
+            ✕ Đóng
+          </button>
+        </div>
+      </div>
+      <!-- Modal body -->
+      <div id="reader-body" class="flex-1 overflow-y-auto px-6 py-4 space-y-4 text-gray-100 leading-relaxed"
+        style="scrollbar-width:thin;scrollbar-color:#374151 transparent;">
       </div>
     </div>
-
   </div>
-</div>
 
-<!-- ── Transcript Reader Modal ─────────────────────────────────────── -->
-<div id="reader-modal"
-     class="hidden fixed inset-0 z-50 flex items-center justify-center p-4"
-     style="background:rgba(0,0,0,0.75);"
-     onclick="closeReaderOutside(event)">
-  <div class="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl"
-       onclick="event.stopPropagation()">
-    <!-- Modal header -->
-    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-shrink-0 flex-wrap gap-2">
-      <h2 class="text-lg font-bold text-gray-100">📖 Transcript — đọc hiểu</h2>
-      <div class="flex items-center gap-2">
-        <label class="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer">
-          <input type="checkbox" id="reader-show-translation" checked onchange="renderReader()"
-                 class="w-3.5 h-3.5 rounded accent-indigo-500" />
-          🌐 Dịch
-        </label>
-        <button id="reader-copy-btn" onclick="copyReaderText()"
-                class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-3 py-1.5 rounded-lg transition">
-          📋 Copy text
-        </button>
-        <button onclick="closeReader()"
-                class="text-xs bg-red-900 hover:bg-red-800 border border-red-700 text-red-300 px-3 py-1.5 rounded-lg transition">
-          ✕ Đóng
-        </button>
-      </div>
-    </div>
-    <!-- Modal body -->
-    <div id="reader-body"
-         class="flex-1 overflow-y-auto px-6 py-4 space-y-4 text-gray-100 leading-relaxed"
-         style="scrollbar-width:thin;scrollbar-color:#374151 transparent;">
-    </div>
+  <!-- ── Drag divider (desktop only) ─────────────────────────────────── -->
+  <div id="drag-divider"
+    class="hidden lg:block absolute top-0 bottom-0 w-1.5 cursor-col-resize z-40 hover:bg-indigo-600 transition-colors"
+    style="background:rgba(99,102,241,0.2);">
+    <div class="absolute inset-y-0 -left-1 -right-1"></div>
   </div>
-</div>
 
-<!-- ── Drag divider (desktop only) ─────────────────────────────────── -->
-<div id="drag-divider"
-     class="hidden lg:block absolute top-0 bottom-0 w-1.5 cursor-col-resize z-40 hover:bg-indigo-600 transition-colors"
-     style="background:rgba(99,102,241,0.2);">
-  <div class="absolute inset-y-0 -left-1 -right-1"></div>
-</div>
-
-<script src="{{ url_for('static', filename='player.js') }}"></script>
-<script>
-  function toggleVideoCollapse() {
-    const vc = document.getElementById('video-container');
-    const btn = document.getElementById('video-toggle-btn');
-    if (vc.style.height === '1px') {
-      vc.style.height = ''; 
-      vc.style.aspectRatio = '16/9';
-      vc.style.opacity = '1';
-      btn.innerHTML = '▼ Gấp gọn Video';
-    } else {
-      vc.style.aspectRatio = 'auto';
-      vc.style.height = '1px';
-      vc.style.opacity = '0.01'; // trick to keep it rendering for youtube but invisible
-      btn.innerHTML = '▶ Hiện Video';
+  <script src="{{ url_for('static', filename='player.js') }}"></script>
+  <script>
+    function toggleVideoCollapse() {
+      const vc = document.getElementById('video-container');
+      const btn = document.getElementById('video-toggle-btn');
+      if (vc.style.height === '1px') {
+        vc.style.height = '';
+        vc.style.aspectRatio = '16/9';
+        vc.style.opacity = '1';
+        btn.innerHTML = '▼ Gấp gọn Video';
+      } else {
+        vc.style.aspectRatio = 'auto';
+        vc.style.height = '1px';
+        vc.style.opacity = '0.01'; // trick to keep it rendering for youtube but invisible
+        btn.innerHTML = '▶ Hiện Video';
+      }
     }
-  }
 
-  // Bind the mobile loop button so it stays in sync
-  const originalToggleLoop = window.toggleLoop;
-  window.toggleLoop = function() {
-    if (originalToggleLoop) originalToggleLoop();
-    // After execution, sync the mobile button text
-    const loopBtn = document.getElementById('loop-btn');
-    const mobileLoopBtn = document.getElementById('mobile-loop-btn');
-    if (loopBtn && mobileLoopBtn) {
-      mobileLoopBtn.innerHTML = loopBtn.innerHTML;
-      mobileLoopBtn.className = 'text-xs px-2 py-1 rounded ' + 
-        (loopBtn.classList.contains('bg-indigo-600') ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400');
+    // Bind the mobile loop button so it stays in sync
+    const originalToggleLoop = window.toggleLoop;
+    window.toggleLoop = function () {
+      if (originalToggleLoop) originalToggleLoop();
+      // After execution, sync the mobile button text
+      const loopBtn = document.getElementById('loop-btn');
+      const mobileLoopBtn = document.getElementById('mobile-loop-btn');
+      if (loopBtn && mobileLoopBtn) {
+        mobileLoopBtn.innerHTML = loopBtn.innerHTML;
+        mobileLoopBtn.className = 'text-xs px-2 py-1 rounded ' +
+          (loopBtn.classList.contains('bg-indigo-600') ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400');
+      }
     }
-  }
-</script>
+  </script>
 </body>
+
 </html>

@@ -1177,6 +1177,39 @@ def api_update_chunk_expressions(chunk_id):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/chunks/<int:chunk_id>/expressions/add', methods=['POST'])
+def api_add_chunk_expression(chunk_id):
+    """Add a single focus expression to a chunk."""
+    try:
+        data = request.get_json(silent=True) or {}
+        expression = str(data.get('expression', '')).strip()
+        if not expression:
+            return jsonify({'error': 'Expression rỗng.'}), 400
+        
+        db = get_db()
+        chunk = db.execute('SELECT focus_expressions FROM chunks WHERE id = ?', (chunk_id,)).fetchone()
+        if chunk is None:
+            return jsonify({'error': 'Không tìm thấy chunk.'}), 404
+            
+        try:
+            expressions = json.loads(chunk['focus_expressions'] or '[]')
+        except Exception:
+            expressions = []
+            
+        if expression not in expressions:
+            expressions.append(expression)
+            expressions = expressions[:15]
+            db.execute(
+                'UPDATE chunks SET focus_expressions = ? WHERE id = ?',
+                (json.dumps(expressions, ensure_ascii=False), chunk_id)
+            )
+            db.commit()
+            
+        return jsonify({'success': True, 'count': len(expressions)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # ── Session Activity API ──────────────────────────────────────────────────────
 
 @app.route('/api/activity/<int:activity_id>/complete', methods=['POST'])

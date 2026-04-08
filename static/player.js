@@ -1462,5 +1462,90 @@ window.addEventListener('beforeunload', () => {
 });
 
 initGoal();
+// ── Selection floating button ──────────────────────────────────────────────
+let _selectedChunkId = null;
 
+document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    const btn = document.getElementById('float-expr-btn');
+    if (!btn) return;
+    
+    if (sel.isCollapsed || sel.toString().trim() === '') {
+        btn.classList.add('hidden');
+        return;
+    }
 
+    // Must be inside lyrics-panel
+    const anchorNode = sel.anchorNode;
+    if (!anchorNode) return;
+    const segElement = anchorNode.nodeType === 3 ? anchorNode.parentNode.closest('.segment-item') : anchorNode.closest('.segment-item');
+    if (!segElement) {
+        btn.classList.add('hidden');
+        return;
+    }
+
+    const tStart = parseFloat(segElement.dataset.start);
+    
+    // Find overlapping chunk from DOM buttons
+    const chunkBtns = document.querySelectorAll('.chunk-loop-btn');
+    let targetChunkId = null;
+    
+    chunkBtns.forEach(cbtn => {
+        const onclickAttr = cbtn.getAttribute('onclick') || '';
+        const match = onclickAttr.match(/toggleChunkLoop\((\d+),\s*([\d.]+),\s*([\d.]+)/);
+        if (match) {
+            const cid = parseInt(match[1]);
+            const cstart = parseFloat(match[2]);
+            const cend = parseFloat(match[3]);
+            if (tStart >= cstart && tStart < cend) {
+                targetChunkId = cid;
+            }
+        }
+    });
+
+    if (!targetChunkId) {
+        btn.classList.add('hidden');
+        return;
+    }
+    _selectedChunkId = targetChunkId;
+
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    
+    // Position button above selection
+    btn.style.left = Math.max(10, rect.left + (rect.width / 2) - (btn.offsetWidth / 2 || 50)) + 'px';
+    btn.style.top = Math.max(10, rect.top + window.scrollY - 35) + 'px';
+    btn.classList.remove('hidden');
+});
+
+// Actually submit the expression
+async function addSelectedExpression() {
+    const sel = window.getSelection();
+    const text = sel.toString().trim();
+    if (!text || !_selectedChunkId) return;
+
+    const btn = document.getElementById('float-expr-btn');
+    if (btn) btn.classList.add('hidden');
+
+    try {
+        const res = await fetch(`/api/chunks/${_selectedChunkId}/expressions/add`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ expression: text })
+        });
+        const data = await res.json();
+        if (data.success) {
+            // Show toast or temporary success message
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-10 right-4 bg-emerald-600 border border-emerald-500 text-white font-semibold px-4 py-2 rounded-lg shadow-2xl z-50 text-sm animate-pulse';
+            toast.textContent = `✓ Đã thêm vào focus expressions! (${data.count}/15)`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2500);
+        } else {
+            alert('Lỗi: ' + (data.error || 'Server error'));
+        }
+    } catch (e) {
+        alert('Lỗi kết nối: ' + e.message);
+    }
+    sel.removeAllRanges();
+}

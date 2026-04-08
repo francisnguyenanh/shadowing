@@ -63,7 +63,7 @@
     {% endif %}
     <button onclick="toggleChunkPlayer()" id="btn-chunk-player"
             class="bg-indigo-700 hover:bg-indigo-600 text-white text-xs md:text-sm font-semibold px-4 py-2 rounded-lg transition flex-1 lg:flex-none">▶ Nghe Chunk</button>
-    <a href="{{ url_for('player', video_db_id=video.id) }}#t={{ chunk.start_time | int }}"
+    <a href="{{ url_for('player', video_db_id=video.id) }}?from_chunk_id={{ chunk.id }}#t={{ chunk.start_time | int }}"
        class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-xs md:text-sm font-semibold px-3 py-2 rounded-lg transition"
        title="Mở full player">⧉</a>
     {% if cycle and cycle.status not in ('not_started', None) %}
@@ -288,7 +288,7 @@
                 title="Ghi âm">🎙</button>
         {% endif %}
 
-        <a href="{{ url_for('player', video_db_id=video.id) }}#t={{ chunk.start_time | int }}"
+        <a href="{{ url_for('player', video_db_id=video.id) }}?from_chunk_id={{ chunk.id }}#t={{ chunk.start_time | int }}"
            class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1 rounded-lg transition flex-none"
            title="Mở player tại chunk này">▶</a>
       </div>

@@ -47,11 +47,19 @@
 
       <!-- Row 1 (Mobile) / Left side (Desktop): Back, Title, Language badge -->
       <div class="flex items-center gap-2 flex-1 min-w-0">
+        {% if request.args.get('from_chunk_id') %}
+        <a href="{{ url_for('chunk_cycle_detail', video_db_id=video.id, chunk_id=request.args.get('from_chunk_id')) }}"
+          class="text-indigo-400 hover:text-indigo-300 transition text-[13px] whitespace-nowrap flex-shrink-0 font-semibold border border-indigo-800 px-2 py-0.5 rounded-md hover:bg-indigo-900/30">
+          <span class="md:hidden">← Về Chunk</span>
+          <span class="hidden md:inline">← Quay lại Chunk</span>
+        </a>
+        {% else %}
         <a href="{{ url_for('index') }}"
           class="text-gray-400 hover:text-gray-200 transition text-[13px] whitespace-nowrap flex-shrink-0">
           <span class="md:hidden">← Trang chủ</span>
           <span class="hidden md:inline">← Quay lại</span>
         </a>
+        {% endif %}
         <span class="text-gray-700 hidden md:inline">|</span>
         <h1 class="text-[13px] md:text-sm font-semibold text-gray-200 truncate flex-1">{{ video.title or
           video.youtube_url }}</h1>
@@ -501,6 +509,11 @@
     style="background:rgba(99,102,241,0.2);">
     <div class="absolute inset-y-0 -left-1 -right-1"></div>
   </div>
+
+  <!-- ── Floating selection action button ────────────────────────────── -->
+  <button id="float-expr-btn" class="hidden absolute z-50 bg-indigo-700 hover:bg-indigo-600 text-white text-[11px] font-semibold px-2 py-1.5 rounded-md shadow-2xl transition-transform border border-indigo-500/50 flex items-center gap-1.5" onclick="addSelectedExpression()">
+    <span>✒️</span><span>Thêm Keyword</span>
+  </button>
 
   <script src="{{ url_for('static', filename='player.js') }}"></script>
   <script>

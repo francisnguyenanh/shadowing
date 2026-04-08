@@ -6,3 +6,4 @@ __pycache__/config.cpython-314.pyc
 __pycache__/database.cpython-314.pyc
 __pycache__/prompt_builder.cpython-314.pyc
 __pycache__/transcript_parser.cpython-314.pyc
+services/__pycache__/learning_cycle_service.cpython-314.pyc

@@ -41,7 +41,7 @@
   <div class="flex gap-2 flex-wrap flex-none">
     <a href="{{ url_for('player', video_db_id=video.id) }}"
        class="bg-indigo-700 hover:bg-indigo-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">
-       ▶ Luyện tập
+       ▶ Full Video
     </a>
     {% if total_chunks == 0 %}
     <button onclick="splitChunks()"
@@ -98,7 +98,6 @@
 {% else %}
 <!-- ── Chunks grid ── -->
 <div class="mb-4">
-  <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">📚 Danh sách chunks – Mỗi chunk = 1 chu kỳ 3 ngày</h2>
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
     {% for chunk in chunks %}
     {% set cyc = chunk.cycle %}
@@ -190,11 +189,8 @@
           📋 Xem chu kỳ
         </a>
         {% endif %}
-        <a href="{{ url_for('player', video_db_id=video.id) }}#t={{ chunk.start_time | int }}"
-           class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-3 py-2 rounded-lg transition"
-           title="Mở full player">⊞</a>
         <button onclick="openChunkModal('{{ video.video_id }}', {{ chunk.start_time | int }}, {{ chunk.end_time | int }}, '{{ chunk.label | e }}')"
-                class="text-xs bg-indigo-800 hover:bg-indigo-700 text-indigo-300 px-3 py-2 rounded-lg transition"
+                class="text-xs bg-indigo-800 hover:bg-indigo-700 text-indigo-300 px-3 py-2 rounded-lg transition" style="display: none;"
                 title="Nghe chunk này">▶</button>
       </div>
     </div>

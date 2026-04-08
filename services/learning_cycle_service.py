@@ -3,8 +3,6 @@
 Learning Cycle Service
 Manages the 3-day shadowing methodology cycle for a video.
 """
-import json
-import datetime
 
 # ── Activity definitions ──────────────────────────────────────────────────────
 
